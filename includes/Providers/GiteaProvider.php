@@ -44,6 +44,7 @@ class GiteaProvider extends BaseProvider {
 		}
 		return array(
 			'Authorization' => 'token ' . $token,
+			'User-Agent'    => 'WordPress/DeployerForGit',
 		);
 	}
 

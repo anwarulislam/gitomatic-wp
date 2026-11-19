@@ -76,9 +76,12 @@ class InstallPackage {
                 return new \WP_Error('invalid', __( 'Private repositories for this provider require an access token.', 'deployer-for-git' ));
             }
         }
-        $package_install_options = array();
+        $package_install_options = array(
+            'branch' => $branch,
+        );
         if ( $is_private_repository ) {
             $package_install_options = array(
+                'branch'                => $branch,
                 'is_private_repository' => true,
                 'username'              => $username,
                 'password'              => $password,
@@ -142,8 +145,15 @@ class InstallPackage {
                     $log_context
                 );
             } else {
-                $error_message = ( is_wp_error( $install_result ) ? $install_result->get_error_message() : __( 'Some error occurred', 'deployer-for-git' ) );
+                $error_message              = ( is_wp_error( $install_result ) ? Helper::format_error_message( $install_result ) : __( 'Some error occurred', 'deployer-for-git' ) );
                 $log_context['duration_ms'] = (int) round( (microtime( true ) - $started_at) * 1000 );
+                if ( is_wp_error( $install_result ) ) {
+                    $log_context['error_code'] = $install_result->get_error_code();
+                    $error_data                = $install_result->get_error_data();
+                    if ( ! empty( $error_data ) ) {
+                        $log_context['error_details'] = $error_data;
+                    }
+                }
                 $logger->log_event(
                     'deployment.failed',
                     'error',
@@ -358,6 +368,41 @@ class InstallPackage {
                 add_filter( 'http_request_args', $auth_filter, 10, 2 );
             }
         }
+        /*
+         * Capture the HTTP response during package download so we can report
+         * precise reasons (HTTP 401, 404, rate limits, cURL errors) if it fails.
+         */
+        $last_http_response   = null;
+        $http_response_filter = function ( $response, $args, $url ) use ( &$last_http_response ) {
+            if ( is_wp_error( $response ) ) {
+                $last_http_response = array(
+                    'url'           => $url,
+                    'error_message' => $response->get_error_message(),
+                    'error_code'    => $response->get_error_code(),
+                );
+            } else {
+                $code    = (int) wp_remote_retrieve_response_code( $response );
+                $message = wp_remote_retrieve_response_message( $response );
+                $body    = '';
+                if ( ! empty( $args['filename'] ) && file_exists( $args['filename'] ) ) {
+                    $file_content = @file_get_contents( $args['filename'], false, null, 0, 2048 );
+                    if ( false !== $file_content ) {
+                        $body = $file_content;
+                    }
+                } else {
+                    $body = wp_remote_retrieve_body( $response );
+                }
+                $last_http_response = array(
+                    'url'     => $url,
+                    'code'    => $code,
+                    'message' => $message,
+                    'body'    => $body,
+                );
+            }
+            return $response;
+        };
+        add_filter( 'http_response', $http_response_filter, 10, 3 );
+
         // Run the package installation.
         $result = $package_upgrader->run( array(
             'package'           => $package_zip_url,
@@ -369,17 +414,111 @@ class InstallPackage {
                 'action' => 'install',
             ),
         ) );
+        remove_filter( 'http_response', $http_response_filter, 10 );
         if ( null !== $auth_filter ) {
             remove_filter( 'http_request_args', $auth_filter, 10, 2 );
         }
         self::remove_package_validation_filters( $package_upgrader );
         $package_upgrader->maintenance_mode( false );
         if ( $result === false ) {
-            return new \WP_Error('invalid', __( 'Some error occurred', 'deployer-for-git' ));
+            if ( isset( $package_upgrader->skin ) && method_exists( $package_upgrader->skin, 'get_errors' ) ) {
+                $skin_errors = $package_upgrader->skin->get_errors();
+                if ( is_wp_error( $skin_errors ) && $skin_errors->has_errors() ) {
+                    return $skin_errors;
+                }
+            }
+            return new \WP_Error('invalid', __( 'Some error occurred during package installation.', 'deployer-for-git' ));
         } elseif ( is_wp_error( $result ) ) {
-            return $result;
+            return self::enhance_install_error( $result, $last_http_response, $provider_type, $options );
         }
         return true;
+    }
+
+    /**
+     * Enhance an installation WP_Error with rich HTTP / provider diagnostics.
+     *
+     * @param \WP_Error $error              Original WP_Error from upgrader.
+     * @param array     $last_http_response Captured HTTP response details.
+     * @param string    $provider_type      Provider slug (github, gitlab, etc.).
+     * @param array     $options            Installation options (branch, etc.).
+     * @return \WP_Error
+     */
+    private static function enhance_install_error( $error, $last_http_response, $provider_type, $options ) {
+        if ( 'download_failed' !== $error->get_error_code() ) {
+            return $error;
+        }
+
+        $error_data   = $error->get_error_data();
+        $http_status  = null;
+        $api_message  = '';
+        $hint         = '';
+        $branch_name  = isset( $options['branch'] ) ? $options['branch'] : '';
+
+        if ( ! empty( $last_http_response ) ) {
+            if ( ! empty( $last_http_response['error_message'] ) ) {
+                // cURL or network transport error.
+                $api_message = $last_http_response['error_message'];
+                $hint        = $api_message;
+            } elseif ( ! empty( $last_http_response['code'] ) ) {
+                $http_status = (int) $last_http_response['code'];
+                $raw_body    = isset( $last_http_response['body'] ) ? $last_http_response['body'] : '';
+
+                if ( ! empty( $raw_body ) ) {
+                    $decoded = json_decode( $raw_body, true );
+                    if ( is_array( $decoded ) && ! empty( $decoded['message'] ) ) {
+                        $api_message = (string) $decoded['message'];
+                    } elseif ( is_array( $decoded ) && ! empty( $decoded['error'] ) ) {
+                        $api_message = is_string( $decoded['error'] ) ? $decoded['error'] : ( isset( $decoded['error']['message'] ) ? (string) $decoded['error']['message'] : '' );
+                    }
+                }
+
+                if ( empty( $api_message ) && ! empty( $last_http_response['message'] ) ) {
+                    $api_message = $last_http_response['message'];
+                }
+
+                if ( 404 === $http_status ) {
+                    $branch_hint = '' !== $branch_name ? sprintf( ' (branch: "%s")', $branch_name ) : '';
+                    $hint        = sprintf(
+                        __( 'HTTP 404: Not Found%s. Verify that the repository URL and branch exist, and that your access token has permission to access this repository.', 'deployer-for-git' ),
+                        $branch_hint
+                    );
+                    if ( empty( $options['is_private_repository'] ) ) {
+                        $hint .= ' ' . __( 'If this repository is private, enable "Is Private Repository" and provide a token.', 'deployer-for-git' );
+                    }
+                } elseif ( 401 === $http_status ) {
+                    $hint = __( 'HTTP 401: Unauthorized. The access token or credentials are invalid, expired, or missing.', 'deployer-for-git' );
+                } elseif ( 403 === $http_status ) {
+                    $hint = __( 'HTTP 403: Forbidden. Token lacks required permissions/scopes, organization requires SSO authorization, or API rate limit was exceeded.', 'deployer-for-git' );
+                } elseif ( 429 === $http_status ) {
+                    $hint = __( 'HTTP 429: Too Many Requests. Git provider API rate limit exceeded.', 'deployer-for-git' );
+                } else {
+                    $hint = sprintf( __( 'HTTP %d response from provider.', 'deployer-for-git' ), $http_status );
+                }
+            }
+        }
+
+        if ( empty( $hint ) && is_string( $error_data ) && '' !== $error_data ) {
+            $hint = $error_data;
+        }
+
+        $combined_message = __( 'Download failed.', 'deployer-for-git' );
+        if ( ! empty( $hint ) ) {
+            $combined_message = rtrim( $combined_message, '.' ) . ': ' . $hint;
+            if ( ! empty( $api_message ) && false === strpos( $hint, $api_message ) ) {
+                $combined_message .= ' (' . $api_message . ')';
+            }
+        }
+
+        return new \WP_Error(
+            'download_failed',
+            $combined_message,
+            array(
+                'http_status' => $http_status,
+                'api_message' => $api_message,
+                'raw_error'   => $error_data,
+                'provider'    => $provider_type,
+            )
+        );
     }
 
 }

@@ -166,10 +166,15 @@ class DfgCommand {
 		$result = $this->run_install( $package_details, $type );
 
 		if ( is_wp_error( $result ) ) {
+			$error_message              = Helper::format_error_message( $result );
 			$log_context['duration_ms'] = (int) round( ( microtime( true ) - $started_at ) * 1000 );
 			$log_context['error_code']  = $result->get_error_code();
-			$logger->log_event( 'deployment.failed', 'error', $result->get_error_message(), $log_context );
-			\WP_CLI::error( $result->get_error_message() );
+			$error_data                 = $result->get_error_data();
+			if ( ! empty( $error_data ) ) {
+				$log_context['error_details'] = $error_data;
+			}
+			$logger->log_event( 'deployment.failed', 'error', $error_message, $log_context );
+			\WP_CLI::error( $error_message );
 		}
 
 		$log_context['duration_ms'] = (int) round( ( microtime( true ) - $started_at ) * 1000 );
@@ -290,7 +295,10 @@ class DfgCommand {
 			return; // Unreachable in real WP-CLI (error() exits), but needed for testability.
 		}
 
-		$options = array( 'wp_json_request' => true );
+		$options = array(
+			'branch'          => $branch,
+			'wp_json_request' => true,
+		);
 
 		if ( $is_private ) {
 			$options['is_private_repository'] = true;
@@ -331,10 +339,15 @@ class DfgCommand {
 		);
 
 		if ( is_wp_error( $result ) ) {
+			$error_message              = Helper::format_error_message( $result );
 			$log_context['duration_ms'] = (int) round( ( microtime( true ) - $started_at ) * 1000 );
 			$log_context['error_code']  = $result->get_error_code();
-			$logger->log_event( 'deployment.failed', 'error', $result->get_error_message(), $log_context );
-			\WP_CLI::error( $result->get_error_message() );
+			$error_data                 = $result->get_error_data();
+			if ( ! empty( $error_data ) ) {
+				$log_context['error_details'] = $error_data;
+			}
+			$logger->log_event( 'deployment.failed', 'error', $error_message, $log_context );
+			\WP_CLI::error( $error_message );
 			return; // Unreachable in real WP-CLI, but needed for testability.
 		}
 
@@ -407,7 +420,10 @@ class DfgCommand {
 			$package_zip_url = $provider->get_zip_repo_url( $package_details['branch'], $github_token );
 		}
 
-		$options = array( 'wp_json_request' => true );
+		$options = array(
+			'branch'          => isset( $package_details['branch'] ) ? $package_details['branch'] : '',
+			'wp_json_request' => true,
+		);
 
 		if ( isset( $package_details['is_private_repository'] ) && true === $package_details['is_private_repository'] ) {
 			$options['is_private_repository'] = true;

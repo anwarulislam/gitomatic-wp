@@ -47,6 +47,8 @@ class GithubProvider extends BaseProvider {
         }
         return array(
             'Authorization' => 'Bearer ' . $token,
+            'User-Agent'    => 'WordPress/DeployerForGit',
+            'Accept'        => 'application/vnd.github+json',
         );
     }
 

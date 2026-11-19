@@ -35,9 +35,18 @@ class ThemeInstallerSkin extends \Theme_Installer_Skin {
 	public function feedback( $feedback, ...$args ) {}
 
 	/**
-	 * Override error method with empty function.
+	 * Store error without outputting HTML.
 	 *
-	 * @param string|WP_Error $errors Errors.
+	 * @param string|\WP_Error $errors Errors.
 	 */
-	public function error( $errors ) {}
+	public function error( $errors ) {
+		if ( ! is_wp_error( $this->errors ) ) {
+			$this->errors = new \WP_Error();
+		}
+		if ( is_wp_error( $errors ) ) {
+			$this->errors->merge_from( $errors );
+		} elseif ( is_string( $errors ) ) {
+			$this->errors->add( 'error', $errors );
+		}
+	}
 }

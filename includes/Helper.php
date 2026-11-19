@@ -261,4 +261,43 @@ class Helper {
 		}
 		return strpos( $token, 'github_pat_' ) !== false;
 	}
+
+	/**
+	 * Format a WP_Error or string into a descriptive, user-friendly error message.
+	 *
+	 * @param mixed $error Error object or message.
+	 * @return string Formatted error message.
+	 */
+	public static function format_error_message( $error ) {
+		if ( ! is_wp_error( $error ) ) {
+			return is_string( $error ) ? $error : __( 'An error occurred.', 'deployer-for-git' );
+		}
+
+		$messages     = $error->get_error_messages();
+		$main_message = ! empty( $messages ) ? implode( ' ', $messages ) : __( 'An error occurred.', 'deployer-for-git' );
+		$data         = $error->get_error_data();
+
+		$reason = '';
+		if ( ! empty( $data ) ) {
+			if ( is_string( $data ) ) {
+				$reason = $data;
+			} elseif ( is_array( $data ) ) {
+				if ( ! empty( $data['reason'] ) ) {
+					$reason = $data['reason'];
+				} elseif ( ! empty( $data['api_message'] ) ) {
+					$reason = $data['api_message'];
+				} elseif ( ! empty( $data['error_message'] ) ) {
+					$reason = $data['error_message'];
+				} elseif ( ! empty( $data['raw_error'] ) && is_string( $data['raw_error'] ) ) {
+					$reason = $data['raw_error'];
+				}
+			}
+		}
+
+		if ( '' !== $reason && false === strpos( $main_message, $reason ) ) {
+			$main_message = rtrim( $main_message, '.' ) . ': ' . $reason;
+		}
+
+		return $main_message;
+	}
 }

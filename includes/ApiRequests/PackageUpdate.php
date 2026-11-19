@@ -130,15 +130,15 @@ class PackageUpdate {
 				$package_zip_url = $provider->get_zip_repo_url( $package_details['branch'], $github_token );
 			}
 
-			$package_install_options = array();
+			$package_install_options = array(
+				'branch' => isset( $package_details['branch'] ) ? $package_details['branch'] : '',
+			);
 
 			if ( array_key_exists( 'is_private_repository', $package_details ) && $package_details['is_private_repository'] === true ) {
-				$package_install_options = array(
-					'is_private_repository' => true,
-					'username'              => isset( $package_details['options']['username'] ) ? $package_details['options']['username'] : '',
-					'password'              => isset( $package_details['options']['password'] ) ? $package_details['options']['password'] : '',
-					'access_token'          => isset( $package_details['options']['access_token'] ) ? $package_details['options']['access_token'] : '',
-				);
+				$package_install_options['is_private_repository'] = true;
+				$package_install_options['username']              = isset( $package_details['options']['username'] ) ? $package_details['options']['username'] : '';
+				$package_install_options['password']              = isset( $package_details['options']['password'] ) ? $package_details['options']['password'] : '';
+				$package_install_options['access_token']          = isset( $package_details['options']['access_token'] ) ? $package_details['options']['access_token'] : '';
 			}
 
 			$package_install_options['wp_json_request'] = true;
@@ -171,9 +171,13 @@ class PackageUpdate {
 				}
 			}
 		} elseif ( is_wp_error( $install_result ) ) {
-			$error_message              = $install_result->get_error_message();
+			$error_message              = Helper::format_error_message( $install_result );
 			$log_context['duration_ms'] = (int) round( ( microtime( true ) - $started_at ) * 1000 );
 			$log_context['error_code']  = $install_result->get_error_code();
+			$error_data                 = $install_result->get_error_data();
+			if ( ! empty( $error_data ) ) {
+				$log_context['error_details'] = $error_data;
+			}
 			$logger->log_event( 'deployment.failed', 'error', $error_message, $log_context );
 
 			$message = $error_message;

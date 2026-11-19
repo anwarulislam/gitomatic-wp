@@ -44,6 +44,7 @@ class BitbucketProvider extends BaseProvider {
 		}
 		return array(
 			'Authorization' => 'Basic ' . base64_encode( $username . ':' . $password ),
+			'User-Agent'    => 'WordPress/DeployerForGit',
 		);
 	}
 

@@ -45,6 +45,7 @@ class GitlabProvider extends BaseProvider {
 		}
 		return array(
 			'PRIVATE-TOKEN' => $token,
+			'User-Agent'    => 'WordPress/DeployerForGit',
 		);
 	}
 
