@@ -1,236 +1,76 @@
 <?php
-
-use DeployerForGit\Helper;
-if ( !defined( 'ABSPATH' ) ) {
-    exit;
-}
-/**
- * Expected: $package_type is either 'plugin' or 'theme'
- * You can set this before including the template, e.g.:
- *   $package_type = 'plugin'; // or 'theme'
- */
-$package_type = ( isset( $package_type ) && 'theme' === $package_type ? 'theme' : 'plugin' );
-$is_plugin = 'plugin' === $package_type;
-// Labels.
-$label_singular = ( $is_plugin ? __( 'Plugin', 'deployer-for-git' ) : __( 'Theme', 'deployer-for-git' ) );
-$success_message = ( $is_plugin ? __( 'Plugin was successfully installed', 'deployer-for-git' ) : __( 'Theme was successfully installed', 'deployer-for-git' ) );
-$heading = ( $is_plugin ? __( 'Install Plugin', 'deployer-for-git' ) : __( 'Install Theme', 'deployer-for-git' ) );
-// Repo examples.
-$repo_example_suffix = ( $is_plugin ? 'wordpress-plugin-name' : 'wordpress-theme-name' );
-// Overwrite note.
-$overwrite_note = ( $is_plugin ? __( 'Note that if a plugin with specified slug is already installed, this action will overwrite the already existing plugin.', 'deployer-for-git' ) : __( 'Note that if a theme with specified slug is already installed, this action will overwrite the already existing theme.', 'deployer-for-git' ) );
+use GitomaticWP\Helper;
+use GitomaticWP\DataManager;
+defined( 'ABSPATH' ) || exit;
+$type = sanitize_key( $_POST['package_type'] ?? $_GET['package_type'] ?? $package_type );
+$type = 'theme' === $type ? 'theme' : 'plugin';
+$source_id = sanitize_text_field( wp_unslash( $_POST['source_id'] ?? $_GET['source_id'] ?? '' ) );
+$source = $source_id ? ( new DataManager() )->get_package( $source_id, $type ) : false;
+$branch_value = sanitize_text_field( wp_unslash( $_POST['repository_branch'] ?? '' ) );
 ?>
-
-<?php 
-if ( isset( $install_result ) ) {
-    ?>
-	<?php 
-    if ( !is_wp_error( $install_result ) ) {
-        ?>
-		<div class="updated">
-			<p>
-				<?php 
-        echo esc_attr( $success_message );
-        ?>
-			</p>
-		</div>
-	<?php 
-    } else {
-        ?>
-		<div class="error">
-			<p>
-				<!-- <strong><?php 
-        echo esc_attr( $install_result->get_error_code() );
-        ?></strong> -->
-				<?php 
-        echo esc_attr( $install_result->get_error_message() );
-        ?>
-			</p>
-		</div>
-	<?php 
-    }
-}
-?>
-
-<div class="wrap">
-	<h1><?php 
-echo esc_attr( $heading );
-?></h1>
-	<form class="dfg_install_package_form" method="post" action="">
-		<input type="hidden" name="<?php 
-echo esc_attr( DFG_SLUG . '_install_package_submitted' );
-?>" value="1">
-		<input type="hidden" name="package_type" value="<?php 
-echo esc_attr( $package_type );
-?>">
-
-		<?php 
-wp_nonce_field( DFG_SLUG . '_install_package_form', DFG_SLUG . '_nonce' );
-?>
-		<table class="form-table">
-			<tr valign="top">
-				<th scope="row"><?php 
-echo esc_attr__( 'Provider Type', 'deployer-for-git' );
-?></th>
-				<td>
-					<select name='provider_type'>
-						<option value="" selected disabled><?php 
-echo esc_attr__( 'Choose a provider', 'deployer-for-git' );
-?></option>
-						<?php 
-foreach ( Helper::available_providers() as $provider_id => $name ) {
-    ?>
-							<option value="<?php 
-    echo esc_attr( $provider_id );
-    ?>"><?php 
-    echo esc_attr( $name );
-    ?></option>
-						<?php 
-}
-?>
-					</select>
-				</td>
-			</tr>
-
-			<tr valign="top" class="dfg_hidden dfg_help_link_row">
-				<th scope="row"></th>
-				<td>
-					<a target="_blank" href="#" id="dfg_install_package_form_repo_help_link">
-						<?php 
-esc_attr_e( 'Click to here for more information about repo configuration', 'deployer-for-git' );
-?>
-					</a>
-				</td>
-			</tr>
-
-			<tr valign="top">
-				<th scope="row"><?php 
-echo esc_attr__( 'Repository URL', 'deployer-for-git' );
-?></th>
-				<td>
-					<input type="url" class="regular-text code" name="repository_url" value="" />
-					<p class="description dfg_repo_url_description dfg_hidden" id="bitbucket-repo-url-description">
-						<?php 
-echo esc_attr( sprintf( 'Example: https://bitbucket.org/owner/%s', $repo_example_suffix ) );
-?>
-					</p>
-					<p class="description dfg_repo_url_description dfg_hidden" id="github-repo-url-description">
-						<?php 
-echo esc_attr( sprintf( 'Example: https://github.com/owner/%s', $repo_example_suffix ) );
-?>
-					</p>
-					<p class="description dfg_repo_url_description dfg_hidden" id="gitea-repo-url-description">
-						<?php 
-echo esc_attr( sprintf( 'Example: https://gitea.com/owner/%s', $repo_example_suffix ) );
-?>
-					</p>
-					<p class="description dfg_repo_url_description dfg_hidden" id="gitlab-repo-url-description">
-						<?php 
-echo esc_attr( sprintf( 'Example: https://gitlab.com/owner/%s', $repo_example_suffix ) );
-?>
-					</p>
-				</td>
-			</tr>
-
-			<tr valign="top">
-				<th scope="row">
-					<?php 
-echo esc_attr__( 'Branch', 'deployer-for-git' );
-?>
-					<span class="dashicons dashicons-randomize"></span>
-				</th>
-				<td>
-					<input type="text" class="" placeholder="master" name="repository_branch" value="" />
-				</td>
-			</tr>
-
-			<tr valign="top" class="dfg_hidden dfg_is_private_repository_row">
-				<th scope="row">
-					<?php
-echo esc_attr__( 'Is Private Repository', 'deployer-for-git' );
-?>
-					<span class="dashicons dashicons-lock"></span>
-				</th>
-				<td><input type="checkbox" name="is_private_repository" value="1"></td>
-			</tr>
-
-			<tr valign="top" class="dfg_hidden dfg_username_row">
-				<th scope="row">
-					<?php
-echo esc_attr__( 'Username / email', 'deployer-for-git' );
-?>
-				</th>
-				<td><input type="text" class="regular-text" name="username" value="" /></td>
-			</tr>
-
-			<tr valign="top" class="dfg_hidden dfg_password_row">
-				<th scope="row">
-					<?php
-echo esc_attr__( 'App Password', 'deployer-for-git' );
-?>
-				</th>
-				<td>
-					<input type="password" class="regular-text" name="password" value="" autocomplete="new-password" />
-					<p class="description">
-						<?php
-echo esc_attr__( 'You can generate a Bitbucket app password here:', 'deployer-for-git' );
-?>
-						<a href="https://bitbucket.org/account/settings/app-passwords/" target="_blank" rel="nofollow"><?php
-echo esc_attr__( 'Link', 'deployer-for-git' );
-?></a>
-					</p>
-				</td>
-			</tr>
-
-			<tr valign="top" class="dfg_hidden dfg_access_token_row">
-				<th scope="row">
-					<?php
-echo esc_attr__( 'Access Token', 'deployer-for-git' );
-?>
-				</th>
-				<td>
-					<input type="password" class="regular-text code" name="access_token" value="" autocomplete="new-password" />
-					<p class="description dfg_access_token_description dfg_hidden" id="github-access-token-description">
-						<?php
-echo esc_attr__( 'You can generate Github access token here:', 'deployer-for-git' );
-?>
-						<a href="https://github.com/settings/tokens" target="_blank" rel="nofollow"><?php
-echo esc_attr__( 'Link', 'deployer-for-git' );
-?></a>
-					</p>
-					<p class="description dfg_access_token_description dfg_hidden" id="gitlab-access-token-description">
-						<?php
-echo esc_attr__( 'You can generate GitLab access token here ("api" scope required):', 'deployer-for-git' );
-?>
-						<a href="https://gitlab.com/-/user_settings/personal_access_tokens" target="_blank" rel="nofollow"><?php
-echo esc_attr__( 'Link', 'deployer-for-git' );
-?></a>
-					</p>
-					<p class="description dfg_access_token_description dfg_hidden" id="gitea-access-token-description">
-						<?php
-echo esc_attr__( 'You can generate Gitea access token here:', 'deployer-for-git' );
-?>
-						<a href="https://gitea.com/user/settings/applications" target="_blank" rel="nofollow"><?php
-echo esc_attr__( 'Link', 'deployer-for-git' );
-?></a>
-					</p>
-				</td>
-			</tr>
-		</table>
-		<div class="submit">
-			<input
-				type="submit"
-				class="button-primary"
-				value="<?php 
-echo esc_attr( $heading );
-?>"
-			/>
-			<br><br>
-			<p class="description">
-				<i><?php 
-echo esc_attr( $overwrite_note );
-?></i>
-			</p>
-		</div>
-	</form>
+<div class="wrap gitomatic-wp-editor">
+	<a href="<?php echo esc_url( Helper::dashboard_url() ); ?>">&larr; <?php esc_html_e( 'Deployments', 'gitomatic-wp' ); ?></a>
+	<h1><?php echo $source ? esc_html__( 'Add another branch', 'gitomatic-wp' ) : esc_html__( 'Add deployment', 'gitomatic-wp' ); ?></h1>
+	<?php if ( true === $install_result ) : ?>
+		<div class="notice notice-success"><p><?php esc_html_e( 'Branch deployed successfully.', 'gitomatic-wp' ); ?> <a href="<?php echo esc_url( Helper::dashboard_url() ); ?>"><?php esc_html_e( 'View deployments', 'gitomatic-wp' ); ?></a></p></div>
+	<?php elseif ( $source_id && ! $source ) : ?>
+		<p><?php esc_html_e( 'The original deployment is no longer available.', 'gitomatic-wp' ); ?></p>
+	<?php else : ?>
+		<?php if ( is_wp_error( $install_result ) ) : ?>
+			<div class="notice notice-error"><p><?php echo esc_html( $install_result->get_error_message() ); ?></p></div>
+		<?php endif; ?>
+		<form method="post" class="gitomatic-wp-editor-form">
+			<?php wp_nonce_field( GITOMATIC_WP_SLUG . '_install_package_form', GITOMATIC_WP_SLUG . '_nonce' ); ?>
+			<input type="hidden" name="gitomatic_wp_install_package_submitted" value="1">
+			<?php if ( $source ) : ?>
+				<input type="hidden" name="source_id" value="<?php echo esc_attr( $source_id ); ?>">
+				<input type="hidden" name="package_type" value="<?php echo esc_attr( $type ); ?>">
+				<p><?php echo esc_html( $source['repo_url'] ); ?></p>
+			<?php else : ?>
+				<label for="repository_url"><?php esc_html_e( 'Repository URL', 'gitomatic-wp' ); ?></label>
+				<input class="regular-text" type="url" id="repository_url" name="repository_url" required placeholder="https://github.com/owner/repository" value="<?php echo esc_attr( wp_unslash( $_POST['repository_url'] ?? '' ) ); ?>">
+				<label for="provider_type"><?php esc_html_e( 'Git provider', 'gitomatic-wp' ); ?></label>
+				<select id="provider_type" name="provider_type" required><option value="">—</option>
+					<?php foreach ( Helper::available_providers() as $key => $name ) : ?>
+						<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $_POST['provider_type'] ?? '', $key ); ?>><?php echo esc_html( $name ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<label for="package_type"><?php esc_html_e( 'Package type', 'gitomatic-wp' ); ?></label>
+				<select name="package_type" id="package_type"><option value="plugin" <?php selected( $type, 'plugin' ); ?>>Plugin</option><option value="theme" <?php selected( $type, 'theme' ); ?>>Theme</option></select>
+				<p><label><input type="checkbox" name="is_private_repository" <?php checked( isset( $_POST['is_private_repository'] ) ); ?>> <?php esc_html_e( 'Private repository', 'gitomatic-wp' ); ?></label></p>
+				<div id="gitomatic-wp-credentials">
+					<label data-auth="bitbucket"><?php esc_html_e( 'Bitbucket email', 'gitomatic-wp' ); ?> <input name="username" autocomplete="off"></label>
+					<label data-auth="bitbucket"><?php esc_html_e( 'Bitbucket API token', 'gitomatic-wp' ); ?> <input name="password" type="password" autocomplete="new-password"></label>
+					<label data-auth="token"><?php esc_html_e( 'Access token', 'gitomatic-wp' ); ?> <input name="access_token" type="password" autocomplete="new-password"></label>
+				</div>
+			<?php endif; ?>
+			<?php include __DIR__ . '/branch-field.php'; ?>
+			<?php if ( $source ) : ?>
+				<fieldset><legend><?php esc_html_e( 'Where should this branch deploy?', 'gitomatic-wp' ); ?></legend>
+					<label><input type="radio" name="destination_mode" value="shared" <?php checked( 'copy' !== ( $_POST['destination_mode'] ?? '' ) ); ?>> <?php echo esc_html( sprintf( __( 'Use the same installation (%s)', 'gitomatic-wp' ), $source['slug'] ) ); ?></label>
+					<p class="description"><?php esc_html_e( 'Each deploy replaces the files in this folder. An active installation stays selected.', 'gitomatic-wp' ); ?></p>
+					<label><input type="radio" name="destination_mode" value="copy" <?php checked( 'copy' === ( $_POST['destination_mode'] ?? '' ) ); ?>> <?php esc_html_e( 'Install a separate copy', 'gitomatic-wp' ); ?></label>
+				</fieldset>
+			<?php else : ?>
+				<label><input type="checkbox" name="use_existing" <?php checked( isset( $_POST['use_existing'] ) ); ?>> <?php esc_html_e( 'Deploy into an already installed plugin or theme', 'gitomatic-wp' ); ?></label>
+				<div id="gitomatic-wp-existing">
+					<?php foreach ( array( 'plugin', 'theme' ) as $kind ) : ?>
+						<label data-existing="<?php echo esc_attr( $kind ); ?>"><?php esc_html_e( 'Existing installation', 'gitomatic-wp' ); ?>
+							<select name="<?php echo esc_attr( 'existing_' . $kind ); ?>"><option value="">—</option>
+							<?php foreach ( \GitomaticWP\Deployments::installed_folders( $kind ) as $installed ) : ?>
+								<option value="<?php echo esc_attr( $installed ); ?>" <?php selected( $_POST[ 'existing_' . $kind ] ?? '', $installed ); ?>><?php echo esc_html( $installed ); ?></option>
+							<?php endforeach; ?>
+							</select>
+						</label>
+					<?php endforeach; ?>
+					<p class="description"><?php esc_html_e( 'Deploying replaces the files in the selected installation.', 'gitomatic-wp' ); ?></p>
+				</div>
+			<?php endif; ?>
+			<div id="gitomatic-wp-folder"><label for="folder"><?php esc_html_e( 'Destination folder', 'gitomatic-wp' ); ?></label>
+				<input id="folder" name="folder" class="regular-text code" data-base="<?php echo esc_attr( $source['slug'] ?? '' ); ?>" value="<?php echo esc_attr( wp_unslash( $_POST['folder'] ?? '' ) ); ?>">
+			</div>
+			<p class="description"><output id="gitomatic-wp-path" aria-live="polite"></output></p>
+			<?php submit_button( __( 'Deploy branch', 'gitomatic-wp' ) ); ?>
+		</form>
+	<?php endif; ?>
 </div>

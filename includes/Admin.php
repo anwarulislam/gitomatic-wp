@@ -1,17 +1,17 @@
 <?php
-namespace DeployerForGit;
+namespace GitomaticWP;
 
-use DeployerForGit\Subpages\DashboardPage\Dashboard;
-use DeployerForGit\Subpages\InstallThemePage\InstallTheme;
-use DeployerForGit\Subpages\InstallPluginPage\InstallPlugin;
-use DeployerForGit\Subpages\LogsPage\Logs;
-use DeployerForGit\Subpages\MiscellaneousPage\Miscellaneous;
-use DeployerForGit\Subpages\EditPackagePage\EditPackage;
+use GitomaticWP\Subpages\DashboardPage\Dashboard;
+use GitomaticWP\Subpages\InstallThemePage\InstallTheme;
+use GitomaticWP\Subpages\InstallPluginPage\InstallPlugin;
+use GitomaticWP\Subpages\LogsPage\Logs;
+use GitomaticWP\Subpages\MiscellaneousPage\Miscellaneous;
+use GitomaticWP\Subpages\EditPackagePage\EditPackage;
 
 /**
  * Class Admin
  *
- * @package DeployerForGit
+ * @package GitomaticWP
  */
 class Admin {
 	/**
@@ -27,8 +27,8 @@ class Admin {
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( is_multisite() ? 'network_admin_notices' : 'admin_notices', array( $this, 'display_alert_notification_box' ) );
-		add_filter( 'admin_footer_text', array( $this, 'admin_footer' ), 1, 2 );
-		add_action( 'wp_ajax_dfg_unlink_package', array( $this, 'handle_unlink_package' ) );
+		add_action( 'wp_ajax_gitomatic_wp_branches', array( Branches::class, 'ajax' ) );
+		add_action( 'wp_ajax_gitomatic_wp_unlink_package', array( $this, 'handle_unlink_package' ) );
 
 		// Add plugin action links.
 		add_filter( 'plugin_action_links', array( $this, 'add_plugin_action_links' ), 10, 2 );
@@ -88,7 +88,7 @@ class Admin {
 			$dashboard_url = Helper::dashboard_url();
 			$message       = self::get_alert_notification_message( $dashboard_url );
 
-			echo '<div class="notice notice-warning dfg_deployment_notice"><p>';
+			echo '<div class="notice notice-warning gitomatic_wp_deployment_notice"><p>';
 			echo wp_kses_post( $message );
 			echo '</p></div>';
 		}
@@ -102,117 +102,98 @@ class Admin {
 	 */
 	public static function get_alert_notification_message( $dashboard_url ) {
 		// translators: %s = dashboard URL.
-		$message = __( '<strong>This site is deployed from Git.</strong> Do not edit connected plugin or theme files directly. Your changes may be overwritten by the next deployment. <a href="%s">View connected packages &rarr;</a>', 'deployer-for-git' );
+		$message = __( '<strong>This site is deployed from Git.</strong> Do not edit connected plugin or theme files directly. Your changes may be overwritten by the next deployment. <a href="%s">View connected packages &rarr;</a>', 'gitomatic-wp' );
 		$message = sprintf( $message, esc_url( $dashboard_url ) );
 
-		return apply_filters( 'dfg_alert_notification_message', $message );
+		return apply_filters( 'gitomatic_wp_alert_notification_message', $message );
 	}
 
 	/**
 	 * Enqueue scripts
 	 */
-	public function enqueue_scripts() {
-		$plugin_data = get_plugin_data( DFG_FILE );
+	public function enqueue_scripts( $hook = '' ) {
+		if ( false === strpos( $hook, Helper::menu_slug() ) ) {
+			return;
+		}
+		$plugin_data = get_plugin_data( GITOMATIC_WP_FILE );
 		$version     = $plugin_data['Version'];
 
-		wp_enqueue_style( 'dfg-styles', DFG_URL . 'assets/css/deployer-for-git-main.css', array(), $version );
+		wp_enqueue_style( 'gitomatic-wp-styles', GITOMATIC_WP_URL . 'assets/css/gitomatic-wp-main.css', array(), $version );
 
-		wp_enqueue_script( 'dfg-script', DFG_URL . 'assets/js/deployer-for-git-main.js', array(), $version, true );
+		wp_enqueue_script( 'gitomatic-wp-script', GITOMATIC_WP_URL . 'assets/js/gitomatic-wp-main.js', array( 'jquery' ), $version, true );
 
 		wp_localize_script(
-			'dfg-script',
-			'dfg',
+			'gitomatic-wp-script',
+			'gitomatic_wp',
 			array(
-				'copy_url_label'         => __( 'Copy URL', 'deployer-for-git' ),
-				'copied_url_label'       => __( 'Copied!', 'deployer-for-git' ),
-				'copy_failed_label'      => __( 'Could not copy the URL.', 'deployer-for-git' ),
-				'show_webhook_label'     => __( 'Show webhook URL', 'deployer-for-git' ),
-				'hide_webhook_label'     => __( 'Hide webhook URL', 'deployer-for-git' ),
-				'deploying_now_label'    => __( 'Deploying now...', 'deployer-for-git' ),
-				'error_label'            => __( 'Something went wrong', 'deployer-for-git' ),
-				'deploy_completed_label' => __( 'Deployed!', 'deployer-for-git' ),
-				'deploy_theme_label'     => __( 'Deploy Theme', 'deployer-for-git' ),
-				'deploy_plugin_label'    => __( 'Deploy Plugin', 'deployer-for-git' ),
-				'unlinking_label'        => __( 'Unlinking package...', 'deployer-for-git' ),
+				'copy_url_label'         => __( 'Copy URL', 'gitomatic-wp' ),
+				'copied_url_label'       => __( 'Copied!', 'gitomatic-wp' ),
+				'copy_failed_label'      => __( 'Could not copy the URL.', 'gitomatic-wp' ),
+				'show_webhook_label'     => __( 'Show webhook URL', 'gitomatic-wp' ),
+				'hide_webhook_label'     => __( 'Hide webhook URL', 'gitomatic-wp' ),
+				'deploying_now_label'    => __( 'Deploying now...', 'gitomatic-wp' ),
+				'error_label'            => __( 'Something went wrong', 'gitomatic-wp' ),
+				'deploy_completed_label' => __( 'Deployed!', 'gitomatic-wp' ),
+				'unlinking_label'        => __( 'Unlinking package...', 'gitomatic-wp' ),
 				'ajax_url'               => admin_url( 'admin-ajax.php' ),
-				'unlink_nonce'           => wp_create_nonce( DFG_SLUG . '_unlink_nonce' ),
-				'unlink_confirm_label'   => __( 'Are you sure you want to unlink this package from Deployer for Git? The plugin/theme files will remain installed.', 'deployer-for-git' ),
+				'select_branch' => __( 'Select a branch', 'gitomatic-wp' ),
+				'enter_branch' => __( 'Enter branch manually…', 'gitomatic-wp' ),
+				'roots' => array( 'theme' => get_theme_root(), 'plugin' => WP_PLUGIN_DIR ),
+				'load_branches' => __( 'Load branches', 'gitomatic-wp' ),
+				'loading_branches' => __( 'Loading branches…', 'gitomatic-wp' ),
+				'manual_branch' => __( 'Choose an available branch or type its name.', 'gitomatic-wp' ),
+				'more_branches' => __( 'Load more branches', 'gitomatic-wp' ),
+				'retry' => __( 'Retry', 'gitomatic-wp' ),
+				'branch_error' => __( 'Branch lookup failed. Retry or enter a branch manually.', 'gitomatic-wp' ),
+				'branch_nonce'           => wp_create_nonce( 'gitomatic_wp_branches' ),
+				'unlink_nonce'           => wp_create_nonce( GITOMATIC_WP_SLUG . '_unlink_nonce' ),
+				'unlink_confirm_label'   => __( 'Disconnect this deployment? Its files stay installed and other branches keep their connections.', 'gitomatic-wp' ),
 			)
 		);
 	}
 
 	/**
-	 * Handle AJAX request to unlink a package from Deployer for Git.
+	 * Handle AJAX request to unlink a package from Gitomatic WP.
 	 */
 	public function handle_unlink_package() {
-		check_ajax_referer( DFG_SLUG . '_unlink_nonce', 'nonce' );
+		check_ajax_referer( GITOMATIC_WP_SLUG . '_unlink_nonce', 'nonce' );
 
 		$capability = is_multisite() ? 'manage_network_options' : 'manage_options';
 		if ( ! current_user_can( $capability ) ) {
-			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'deployer-for-git' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'gitomatic-wp' ) ) );
 		}
 
 		$slug = isset( $_POST['slug'] ) ? sanitize_text_field( wp_unslash( $_POST['slug'] ) ) : '';
 		$type = isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '';
 
 		if ( empty( $slug ) || ! in_array( $type, array( 'plugin', 'theme' ), true ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'deployer-for-git' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'gitomatic-wp' ) ) );
 		}
 
 		$data_manager = new DataManager();
-		$result       = $data_manager->remove_package_details( $slug, $type );
+		$result = Deployments::locked( function () use ( $data_manager, $slug, $type ) {
+			return $data_manager->remove_package_details( $slug, $type );
+		} );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
 
 		if ( $result ) {
 			$logger = new Logger();
 			$logger->log_event(
 				'package.unlinked',
 				'info',
-				__( 'Package unlinked from Deployer for Git.', 'deployer-for-git' ),
+				__( 'Package unlinked from Gitomatic WP.', 'gitomatic-wp' ),
 				array(
 					'package_type' => $type,
 					'package_slug' => $slug,
 					'trigger'      => 'wp-admin',
 				)
 			);
-			wp_send_json_success( array( 'message' => __( 'Package unlinked successfully.', 'deployer-for-git' ) ) );
+			wp_send_json_success( array( 'message' => __( 'Package unlinked successfully.', 'gitomatic-wp' ) ) );
 		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to unlink package.', 'deployer-for-git' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Failed to unlink package.', 'gitomatic-wp' ) ) );
 		}
-	}
-
-	/**
-	 * When user is on a plugin related admin page, display footer text.
-	 *
-	 * @param string $text Footer text.
-	 *
-	 * @return string
-	 */
-	public function admin_footer( $text ) {
-
-		global $current_screen;
-
-		if ( ! empty( $current_screen->id ) && strpos( $current_screen->id, 'deployer-for-git' ) !== false ) {
-			$documentation_url = 'https://deployer-for-git.com/knowledge-base/';
-			$review_url        = 'https://wordpress.org/support/plugin/deployer-for-git/reviews/?filter=5#new-post';
-			$text              = sprintf(
-				wp_kses( /* translators: $1$s - documentation link; $2$s - Deployer for Git plugin name; $3$s and $4$s - WP.org review link. */
-					__( '<a href="%1$s" target="_blank" rel="noopener noreferrer">Documentation</a> &middot; Please rate %2$s <a href="%3$s" target="_blank" rel="noopener noreferrer">&#9733;&#9733;&#9733;&#9733;&#9733;</a> on <a href="%4$s" target="_blank" rel="noopener">WordPress.org</a> to support and promote our solution. Thank you very much!', 'deployer-for-git' ),
-					array(
-						'a' => array(
-							'href'   => array(),
-							'target' => array(),
-							'rel'    => array(),
-						),
-					)
-				),
-				esc_url( $documentation_url ),
-				'<strong>Deployer for Git</strong>',
-				esc_url( $review_url ),
-				esc_url( $review_url )
-			);
-		}
-
-		return $text;
 	}
 
 	/**
@@ -233,10 +214,10 @@ class Admin {
 
 			// Check if this plugin belongs to that directory.
 			if ( strpos( $plugin_file, $target_dir . '/' ) === 0 ) {
-					$actions['dfg_package_update_link'] = sprintf(
+					$actions['gitomatic_wp_package_update_link'] = sprintf(
 						'<a href="%s">%s</a> <span class="dashicons dashicons-update-alt"></span>',
 						esc_url( Helper::dashboard_url() ),
-						__( 'Update with Git', 'deployer-for-git' )
+						__( 'Update with Git', 'gitomatic-wp' )
 					);
 			}
 		}

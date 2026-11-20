@@ -1,13 +1,13 @@
 <?php
 
-namespace DeployerForGit\Subpages\InstallPluginPage;
+namespace GitomaticWP\Subpages\InstallPluginPage;
 
-use DeployerForGit\Subpages\InstallPackage;
+use GitomaticWP\Subpages\InstallPackage;
 
 /**
  * Class InstallPlugin
  *
- * @package DeployerForGit\Subpages\InstallPluginPage
+ * @package GitomaticWP\Subpages\InstallPluginPage
  */
 class InstallPlugin extends InstallPackage {
 
@@ -15,8 +15,8 @@ class InstallPlugin extends InstallPackage {
 	 * Initializes the menu.
 	 */
 	public function init_menu() {
-		$menu_slug  = \DeployerForGit\Helper::menu_slug();
-		$page_title = esc_attr__( 'Install Plugin', 'deployer-for-git' );
+		$menu_slug  = \GitomaticWP\Helper::menu_slug();
+		$page_title = esc_attr__( 'Add deployment', 'gitomatic-wp' );
 		$capability = is_multisite() ? 'manage_network_options' : 'manage_options';
 
 		add_submenu_page(

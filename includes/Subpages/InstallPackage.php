@@ -1,14 +1,14 @@
 <?php
 
-namespace DeployerForGit\Subpages;
+namespace GitomaticWP\Subpages;
 
-use DeployerForGit\DataManager;
-use DeployerForGit\Logger;
-use DeployerForGit\Helper;
+use GitomaticWP\DataManager;
+use GitomaticWP\Logger;
+use GitomaticWP\Helper;
 /**
  * Class InstallPackage
  *
- * @package Wp_Git_Deployer
+ * @package Gitomatic_WP
  */
 class InstallPackage {
     /**
@@ -28,18 +28,13 @@ class InstallPackage {
      * Validates the package installation form.
      */
     private function validate_install_package_form() {
-        if ( !isset( $_POST[DFG_SLUG . '_install_package_submitted'] ) ) {
+        if ( !isset( $_POST[GITOMATIC_WP_SLUG . '_install_package_submitted'] ) ) {
             return;
         }
         // Vefiry form nonce.
-        $nonce = ( isset( $_POST[DFG_SLUG . '_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST[DFG_SLUG . '_nonce'] ) ) : '' );
-        if ( !wp_verify_nonce( $nonce, DFG_SLUG . '_install_package_form' ) ) {
-            return new \WP_Error('invalid', __( 'Invalid nonce', 'deployer-for-git' ));
-        }
-        $provider_type = ( isset( $_POST['provider_type'] ) ? sanitize_text_field( wp_unslash( $_POST['provider_type'] ) ) : '' );
-        // Check if provider type is valid.
-        if ( !in_array( $provider_type, array_keys( Helper::available_providers() ), true ) ) {
-            return new \WP_Error('invalid', __( 'Invalid provider type', 'deployer-for-git' ));
+        $nonce = ( isset( $_POST[GITOMATIC_WP_SLUG . '_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST[GITOMATIC_WP_SLUG . '_nonce'] ) ) : '' );
+        if ( !wp_verify_nonce( $nonce, GITOMATIC_WP_SLUG . '_install_package_form' ) ) {
+            return new \WP_Error('invalid', __( 'Invalid nonce', 'gitomatic-wp' ));
         }
         return true;
     }
@@ -57,123 +52,45 @@ class InstallPackage {
         }
         // phpcs:disable WordPress.Security.NonceVerification.Missing
         // Sanitize form data.
-        $package_type = ( isset( $_POST['package_type'] ) ? sanitize_text_field( wp_unslash( $_POST['package_type'] ) ) : '' );
-        $package_type = ( $package_type === 'plugin' ? 'plugin' : 'theme' );
-        $provider_type = ( isset( $_POST['provider_type'] ) ? sanitize_text_field( wp_unslash( $_POST['provider_type'] ) ) : '' );
-        $branch = ( isset( $_POST['repository_branch'] ) && !empty( $_POST['repository_branch'] ) ? sanitize_text_field( wp_unslash( $_POST['repository_branch'] ) ) : 'master' );
-        $repository_url = ( isset( $_POST['repository_url'] ) ? esc_url_raw( wp_unslash( $_POST['repository_url'] ) ) : '' );
-        $is_private_repository = isset( $_POST['is_private_repository'] );
-        $username = ( isset( $_POST['username'] ) ? sanitize_text_field( wp_unslash( $_POST['username'] ) ) : '' );
-        $password = ( isset( $_POST['password'] ) ? sanitize_text_field( wp_unslash( $_POST['password'] ) ) : '' );
-        $access_token = ( isset( $_POST['access_token'] ) ? sanitize_text_field( wp_unslash( $_POST['access_token'] ) ) : '' );
-        // phpcs:enable WordPress.Security.NonceVerification.Missing
-        // Validate private repository credentials.
-        if ( $is_private_repository ) {
-            if ( $provider_type === 'bitbucket' && ( empty( $username ) || empty( $password ) ) ) {
-                return new \WP_Error('invalid', __( 'Bitbucket private repositories require a username and app password.', 'deployer-for-git' ));
-            }
-            if ( in_array( $provider_type, array( 'github', 'gitlab', 'gitea' ), true ) && empty( $access_token ) ) {
-                return new \WP_Error('invalid', __( 'Private repositories for this provider require an access token.', 'deployer-for-git' ));
-            }
+        $type = 'theme' === ( $_POST['package_type'] ?? '' ) ? 'theme' : 'plugin';
+        $source_id = sanitize_text_field( wp_unslash( $_POST['source_id'] ?? '' ) );
+        $source = $source_id ? ( new DataManager() )->get_package( $source_id, $type ) : false;
+        $branch = sanitize_text_field( wp_unslash( $_POST['repository_branch'] ?? '' ) );
+        $mode = 'shared' === ( $_POST['destination_mode'] ?? '' ) ? 'shared' : 'copy';
+        $package = $source ?: array(
+            'repo_url' => esc_url_raw( wp_unslash( $_POST['repository_url'] ?? '' ) ),
+            'provider' => sanitize_key( $_POST['provider_type'] ?? '' ),
+            'is_private_repository' => isset( $_POST['is_private_repository'] ),
+            'options' => array(),
+        );
+        if ( ! isset( Helper::available_providers()[ $package['provider'] ] ) ) {
+            return new \WP_Error( 'invalid_provider', __( 'Choose a repository provider.', 'gitomatic-wp' ) );
         }
-        $package_install_options = array(
-            'branch' => $branch,
-        );
-        if ( $is_private_repository ) {
-            $package_install_options = array(
-                'branch'                => $branch,
-                'is_private_repository' => true,
-                'username'              => $username,
-                'password'              => $password,
-                'access_token'          => $access_token,
-            );
-        }
-        $provider_class_name = Helper::get_provider_class( $provider_type );
-        $logger = new Logger();
-        $started_at = microtime( true );
-        $log_context = array(
-            'deployment_id' => uniqid( 'dfg-', true ),
-            'package_type'  => $package_type,
-            'provider'      => $provider_type,
-            'branch'        => $branch,
-            'trigger'       => 'wp-admin',
-        );
-        $logger->log_event(
-            'deployment.started',
-            'info',
-            'Installation started.',
-            $log_context
-        );
-        try {
-            $provider = new $provider_class_name($repository_url);
-            $package_slug = $provider->get_package_slug();
-            $log_context['package_slug'] = $package_slug;
-            $package_zip_url = $provider->get_zip_repo_url( $branch );
-            // If the provider is GitHub, we need to do some additional checks.
-            if ( $provider instanceof \DeployerForGit\Providers\GithubProvider ) {
-                $github_token = ( isset( $package_install_options['access_token'] ) ? $package_install_options['access_token'] : '' );
-                $package_zip_url = $provider->get_zip_repo_url( $branch, $github_token );
-            }
-            $install_result = self::install_package_from_zip_url(
-                $package_zip_url,
-                $package_slug,
-                $package_type,
-                $provider_type,
-                $package_install_options
-            );
-            // TODO: maybe move this piece to a method?
-            if ( $install_result === true ) {
-                $data_manager = new DataManager();
-                $package_data = array(
-                    'slug'                  => $package_slug,
-                    'repo_url'              => $repository_url,
-                    'branch'                => $branch,
-                    'provider'              => $provider_type,
-                    'is_private_repository' => $is_private_repository,
-                    'options'               => array(
-                        'username'     => $username,
-                        'password'     => $password,
-                        'access_token' => $access_token,
-                    ),
-                );
-                $data_manager->store_package_details( $package_data, $package_type );
-                $log_context['duration_ms'] = (int) round( (microtime( true ) - $started_at) * 1000 );
-                $logger->log_event(
-                    'deployment.succeeded',
-                    'info',
-                    'Package installed successfully.',
-                    $log_context
-                );
-            } else {
-                $error_message              = ( is_wp_error( $install_result ) ? Helper::format_error_message( $install_result ) : __( 'Some error occurred', 'deployer-for-git' ) );
-                $log_context['duration_ms'] = (int) round( (microtime( true ) - $started_at) * 1000 );
-                if ( is_wp_error( $install_result ) ) {
-                    $log_context['error_code'] = $install_result->get_error_code();
-                    $error_data                = $install_result->get_error_data();
-                    if ( ! empty( $error_data ) ) {
-                        $log_context['error_details'] = $error_data;
-                    }
+        if ( ! $source && $package['is_private_repository'] ) {
+            $keys = 'bitbucket' === $package['provider'] ? array( 'username', 'password' ) : array( 'access_token' );
+            foreach ( $keys as $key ) {
+                $package['options'][ $key ] = trim( wp_unslash( $_POST[ $key ] ?? '' ) );
+                if ( '' === $package['options'][ $key ] ) {
+                    return new \WP_Error( 'credentials_required', __( 'Enter credentials for the private repository.', 'gitomatic-wp' ) );
                 }
-                $logger->log_event(
-                    'deployment.failed',
-                    'error',
-                    $error_message,
-                    $log_context
-                );
             }
-        } catch ( \Exception $e ) {
-            // Invalid repository URL.
-            $install_result = new \WP_Error('invalid', $e->getMessage());
-            $log_context['duration_ms'] = (int) round( (microtime( true ) - $started_at) * 1000 );
-            $logger->log_event(
-                'deployment.failed',
-                'error',
-                $e->getMessage(),
-                $log_context
-            );
         }
+        $package['branch'] = $branch;
+        $package['slug'] = $source && 'shared' === $mode ? $source['slug'] : trim( wp_unslash( $_POST['folder'] ?? '' ) );
+        if ( ! $source_id && isset( $_POST['use_existing'] ) ) {
+            $mode = 'existing';
+            $package['slug'] = trim( wp_unslash( $_POST[ 'existing_' . $type ] ?? '' ) );
+        }
+        $created = \GitomaticWP\Deployments::create( $package, $type, $mode, $source_id );
+        $install_result = is_wp_error( $created ) ? $created : true;
+        ( new Logger() )->log_event(
+            true === $install_result ? 'deployment.succeeded' : 'deployment.failed',
+            true === $install_result ? 'info' : 'error',
+            true === $install_result ? __( 'Deployment added.', 'gitomatic-wp' ) : $install_result->get_error_message(),
+            array( 'package_type' => $type, 'package_slug' => $package['slug'], 'instance_id' => is_array( $created ) ? $created['instance_id'] : '', 'branch' => $branch, 'trigger' => 'wp-admin' )
+        );
         $success = $install_result === true;
-        do_action( 'dfg_after_package_install', $success );
+        do_action( 'gitomatic_wp_after_package_install', $success );
         return $install_result;
     }
 
@@ -236,10 +153,20 @@ class InstallPackage {
                 return new \WP_Error(
                     'package_type_mismatch',
                     // phpcs:ignore Generic.Files.LineLength.TooLong
-                    __( 'This repository does not contain a valid WordPress theme. If it contains a plugin, install it from the Install Plugin page instead.', 'deployer-for-git' )
+                    __( 'This repository does not contain a valid WordPress theme. If it contains a plugin, choose Plugin as the deployment type.', 'gitomatic-wp' )
                 );
             }
             return $source;
+        }
+        $folder = $hook_extra['gitomatic_wp_folder'] ?? '';
+        $active = array_merge( get_option( 'active_plugins', array() ), array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) ) );
+        foreach ( $active as $plugin ) {
+            if ( dirname( $plugin ) === $folder ) {
+                $entry = trailingslashit( $working_directory ) . basename( $plugin );
+                if ( ! is_file( $entry ) || empty( get_plugin_data( $entry, false, false )['Name'] ) ) {
+                    return new \WP_Error( 'missing_active_plugin', __( 'This branch is missing the active plugin entry file. Install it as a separate copy.', 'gitomatic-wp' ) );
+                }
+            }
         }
         $plugin_files = glob( trailingslashit( $working_directory ) . '*.php' );
         foreach ( (array) $plugin_files as $plugin_file ) {
@@ -251,7 +178,7 @@ class InstallPackage {
         return new \WP_Error(
             'package_type_mismatch',
             // phpcs:ignore Generic.Files.LineLength.TooLong
-            __( 'This repository does not contain a valid WordPress plugin. If it contains a theme, install it from the Install Theme page instead.', 'deployer-for-git' )
+            __( 'This repository does not contain a valid WordPress plugin. If it contains a theme, choose Theme as the deployment type.', 'gitomatic-wp' )
         );
     }
 
@@ -301,21 +228,21 @@ class InstallPackage {
         $options = array()
     ) {
         if ( empty( $provider_type ) ) {
-            return new \WP_Error('invalid', __( 'Provider does not exist.', 'deployer-for-git' ));
+            return new \WP_Error('invalid', __( 'Provider does not exist.', 'gitomatic-wp' ));
         }
         // Check if provider type is valid.
         if ( !in_array( $provider_type, array_keys( Helper::available_providers() ), true ) ) {
-            return new \WP_Error('invalid', __( 'Invalid provider type', 'deployer-for-git' ));
+            return new \WP_Error('invalid', __( 'Invalid provider type', 'gitomatic-wp' ));
         }
         $type = ( $type === 'theme' ? 'theme' : 'plugin' );
         // Check for empty URL and slug.
-        if ( empty( $package_zip_url ) || empty( $package_slug ) ) {
-            return new \WP_Error('invalid', __( 'Package zip URL and package slug must exist', 'deployer-for-git' ));
+        if ( empty( $package_zip_url ) || ! \GitomaticWP\Deployments::valid_folder( $package_slug ) ) {
+            return new \WP_Error('invalid', __( 'Package zip URL and package slug must exist', 'gitomatic-wp' ));
         }
         $is_wp_json_request = self::is_wp_json_request( $options );
         // Check user capabilities.
         if ( !self::current_user_can_proceed( $type ) && !$is_wp_json_request ) {
-            return new \WP_Error('invalid', __( 'User should have enough permissions', 'deployer-for-git' ));
+            return new \WP_Error('invalid', __( 'User should have enough permissions', 'gitomatic-wp' ));
         }
         // Initialize WordPress filesystem.
         if ( !function_exists( 'WP_Filesystem' ) ) {
@@ -329,13 +256,13 @@ class InstallPackage {
         require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         // Set up package installation parameters.
         if ( $type === 'theme' ) {
-            $package_destination_dir = WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'themes' . DIRECTORY_SEPARATOR . $package_slug;
-            $skin = new \DeployerForGit\ThemeInstallerSkin();
+            $package_destination_dir = get_theme_root( $package_slug ) . DIRECTORY_SEPARATOR . $package_slug;
+            $skin = new \GitomaticWP\ThemeInstallerSkin();
             // Create a new instance of the Theme_Upgrader class.
             $package_upgrader = new \Theme_Upgrader($skin);
         } else {
             $package_destination_dir = WP_PLUGIN_DIR . DIRECTORY_SEPARATOR . $package_slug;
-            $skin = new \DeployerForGit\PluginInstallerSkin();
+            $skin = new \GitomaticWP\PluginInstallerSkin();
             // Create a new instance of the Plugin_Upgrader class.
             $package_upgrader = new \Plugin_Upgrader($skin);
         }
@@ -359,8 +286,10 @@ class InstallPackage {
             $provider_class_name = Helper::get_provider_class( $provider_type );
             $headers = $provider_class_name::get_download_headers( $options );
             if ( ! empty( $headers ) ) {
-                $auth_filter = function ( $args, $url ) use ( $package_zip_url, $headers ) {
-                    if ( $url === $package_zip_url ) {
+                $target_host = wp_parse_url( $package_zip_url, PHP_URL_HOST );
+                $auth_filter = function ( $args, $url ) use ( $package_zip_url, $target_host, $headers ) {
+                    $req_host = wp_parse_url( $url, PHP_URL_HOST );
+                    if ( $url === $package_zip_url || ( ! empty( $target_host ) && $req_host === $target_host ) ) {
                         $args['headers'] = array_merge( (array) $args['headers'], $headers );
                     }
                     return $args;
@@ -381,9 +310,10 @@ class InstallPackage {
                     'error_code'    => $response->get_error_code(),
                 );
             } else {
-                $code    = (int) wp_remote_retrieve_response_code( $response );
-                $message = wp_remote_retrieve_response_message( $response );
-                $body    = '';
+                $code     = (int) wp_remote_retrieve_response_code( $response );
+                $message  = wp_remote_retrieve_response_message( $response );
+                $body     = '';
+                $has_auth = ! empty( $args['headers']['Authorization'] ) || ! empty( $args['headers']['PRIVATE-TOKEN'] );
                 if ( ! empty( $args['filename'] ) && file_exists( $args['filename'] ) ) {
                     $file_content = @file_get_contents( $args['filename'], false, null, 0, 2048 );
                     if ( false !== $file_content ) {
@@ -393,33 +323,54 @@ class InstallPackage {
                     $body = wp_remote_retrieve_body( $response );
                 }
                 $last_http_response = array(
-                    'url'     => $url,
-                    'code'    => $code,
-                    'message' => $message,
-                    'body'    => $body,
+                    'url'           => $url,
+                    'code'          => $code,
+                    'message'       => $message,
+                    'body'          => $body,
+                    'authenticated' => $has_auth,
                 );
             }
             return $response;
         };
         add_filter( 'http_response', $http_response_filter, 10, 3 );
 
-        // Run the package installation.
-        $result = $package_upgrader->run( array(
-            'package'           => $package_zip_url,
-            'destination'       => $package_destination_dir,
-            'clear_destination' => true,
-            'clear_working'     => true,
-            'hook_extra'        => array(
-                'type'   => $type,
-                'action' => 'install',
-            ),
-        ) );
-        remove_filter( 'http_response', $http_response_filter, 10 );
-        if ( null !== $auth_filter ) {
-            remove_filter( 'http_request_args', $auth_filter, 10, 2 );
+        $extra = array( 'type' => $type, 'action' => 'install', 'gitomatic_wp_folder' => $package_slug );
+        if ( is_dir( $package_destination_dir ) && method_exists( $package_upgrader, 'restore_temp_backup' ) ) {
+            $extra['temp_backup'] = array(
+                'slug' => $package_slug,
+                'src'  => dirname( $package_destination_dir ),
+                'dir'  => $type . 's',
+            );
         }
-        self::remove_package_validation_filters( $package_upgrader );
-        $package_upgrader->maintenance_mode( false );
+        try {
+            $result = $package_upgrader->run( array(
+                'package'           => $package_zip_url,
+                'destination'       => $package_destination_dir,
+                'clear_destination' => true,
+                'clear_working'     => true,
+                'hook_extra'        => $extra,
+            ) );
+            // Complete core's rollback and cleanup while the deployment lock is held.
+            if ( isset( $extra['temp_backup'] ) ) {
+                if ( remove_action( 'shutdown', array( $package_upgrader, 'restore_temp_backup' ), 10 ) ) {
+                    $restored = $package_upgrader->restore_temp_backup();
+                    if ( is_wp_error( $restored ) ) {
+                        remove_action( 'shutdown', array( $package_upgrader, 'delete_temp_backup' ), 100 );
+                        return $restored;
+                    }
+                }
+                if ( remove_action( 'shutdown', array( $package_upgrader, 'delete_temp_backup' ), 100 ) ) {
+                    $package_upgrader->delete_temp_backup();
+                }
+            }
+        } finally {
+            remove_filter( 'http_response', $http_response_filter, 10 );
+            if ( null !== $auth_filter ) {
+                remove_filter( 'http_request_args', $auth_filter, 10, 2 );
+            }
+            self::remove_package_validation_filters( $package_upgrader );
+            $package_upgrader->maintenance_mode( false );
+        }
         if ( $result === false ) {
             if ( isset( $package_upgrader->skin ) && method_exists( $package_upgrader->skin, 'get_errors' ) ) {
                 $skin_errors = $package_upgrader->skin->get_errors();
@@ -427,9 +378,14 @@ class InstallPackage {
                     return $skin_errors;
                 }
             }
-            return new \WP_Error('invalid', __( 'Some error occurred during package installation.', 'deployer-for-git' ));
+            return new \WP_Error('invalid', __( 'Some error occurred during package installation.', 'gitomatic-wp' ));
         } elseif ( is_wp_error( $result ) ) {
             return self::enhance_install_error( $result, $last_http_response, $provider_type, $options );
+        }
+        if ( 'theme' === $type ) {
+            wp_clean_themes_cache( false );
+        } else {
+            wp_clean_plugins_cache( false );
         }
         return true;
     }
@@ -452,6 +408,7 @@ class InstallPackage {
         $http_status  = null;
         $api_message  = '';
         $hint         = '';
+        $has_auth     = false;
         $branch_name  = isset( $options['branch'] ) ? $options['branch'] : '';
 
         if ( ! empty( $last_http_response ) ) {
@@ -476,23 +433,28 @@ class InstallPackage {
                     $api_message = $last_http_response['message'];
                 }
 
+                $has_auth    = isset( $last_http_response['authenticated'] ) && $last_http_response['authenticated'];
                 if ( 404 === $http_status ) {
                     $branch_hint = '' !== $branch_name ? sprintf( ' (branch: "%s")', $branch_name ) : '';
-                    $hint        = sprintf(
-                        __( 'HTTP 404: Not Found%s. Verify that the repository URL and branch exist, and that your access token has permission to access this repository.', 'deployer-for-git' ),
-                        $branch_hint
-                    );
-                    if ( empty( $options['is_private_repository'] ) ) {
-                        $hint .= ' ' . __( 'If this repository is private, enable "Is Private Repository" and provide a token.', 'deployer-for-git' );
+                    if ( $has_auth ) {
+                        $hint = sprintf(
+                            __( 'HTTP 404: Not Found%s. Check the repository, branch name, and read access for the saved credentials.', 'gitomatic-wp' ),
+                            $branch_hint
+                        );
+                    } else {
+                        $hint = sprintf(
+                            __( 'HTTP 404: Not Found%s. The request was sent without an access token header. Check that "Is Private Repository" is enabled in package settings and the access token is saved.', 'gitomatic-wp' ),
+                            $branch_hint
+                        );
                     }
                 } elseif ( 401 === $http_status ) {
-                    $hint = __( 'HTTP 401: Unauthorized. The access token or credentials are invalid, expired, or missing.', 'deployer-for-git' );
+                    $hint = __( 'HTTP 401: Unauthorized. The access token or credentials are invalid, expired, or missing.', 'gitomatic-wp' );
                 } elseif ( 403 === $http_status ) {
-                    $hint = __( 'HTTP 403: Forbidden. Token lacks required permissions/scopes, organization requires SSO authorization, or API rate limit was exceeded.', 'deployer-for-git' );
+                    $hint = __( 'HTTP 403: Forbidden. Token lacks required permissions/scopes, organization requires SSO authorization, or API rate limit was exceeded.', 'gitomatic-wp' );
                 } elseif ( 429 === $http_status ) {
-                    $hint = __( 'HTTP 429: Too Many Requests. Git provider API rate limit exceeded.', 'deployer-for-git' );
+                    $hint = __( 'HTTP 429: Too Many Requests. Git provider API rate limit exceeded.', 'gitomatic-wp' );
                 } else {
-                    $hint = sprintf( __( 'HTTP %d response from provider.', 'deployer-for-git' ), $http_status );
+                    $hint = sprintf( __( 'HTTP %d response from provider.', 'gitomatic-wp' ), $http_status );
                 }
             }
         }
@@ -501,7 +463,7 @@ class InstallPackage {
             $hint = $error_data;
         }
 
-        $combined_message = __( 'Download failed.', 'deployer-for-git' );
+        $combined_message = __( 'Download failed.', 'gitomatic-wp' );
         if ( ! empty( $hint ) ) {
             $combined_message = rtrim( $combined_message, '.' ) . ': ' . $hint;
             if ( ! empty( $api_message ) && false === strpos( $hint, $api_message ) ) {
@@ -513,10 +475,11 @@ class InstallPackage {
             'download_failed',
             $combined_message,
             array(
-                'http_status' => $http_status,
-                'api_message' => $api_message,
-                'raw_error'   => $error_data,
-                'provider'    => $provider_type,
+                'http_status'   => $http_status,
+                'api_message'   => $api_message,
+                'authenticated' => $has_auth,
+                'raw_error'     => $error_data,
+                'provider'      => $provider_type,
             )
         );
     }

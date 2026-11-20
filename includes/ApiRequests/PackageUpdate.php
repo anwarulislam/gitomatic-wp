@@ -1,11 +1,11 @@
 <?php
 
-namespace DeployerForGit\ApiRequests;
+namespace GitomaticWP\ApiRequests;
 
-use DeployerForGit\DataManager;
-use DeployerForGit\Helper;
-use DeployerForGit\Logger;
-use DeployerForGit\Subpages\InstallPackage;
+use GitomaticWP\DataManager;
+use GitomaticWP\Helper;
+use GitomaticWP\Logger;
+use GitomaticWP\Deployments;
 
 /**
  * PackageUpdate class
@@ -22,7 +22,7 @@ class PackageUpdate {
 			'rest_api_init',
 			function () {
 				register_rest_route(
-					'dfg/v1',
+					'gitomatic-wp/v1',
 					'/package_update/',
 					array(
 						array(
@@ -56,7 +56,7 @@ class PackageUpdate {
 				'type'    => $type,
 				'package' => $package_slug,
 			),
-			rest_url( 'dfg/v1/package_update' )
+			rest_url( 'gitomatic-wp/v1/package_update' )
 		);
 
 		return $url;
@@ -74,9 +74,9 @@ class PackageUpdate {
 		$package_slug = $request->get_param( 'package' );
 		$package_type = $request->get_param( 'type' ) === 'plugin' ? 'plugin' : 'theme';
 
-		do_action( 'dfg_before_api_package_update', $package_slug, $package_type );
+		do_action( 'gitomatic_wp_before_api_package_update', $package_slug, $package_type );
 
-		if ( null === $secret || Helper::get_api_secret() !== $secret ) {
+		if ( ! is_string( $secret ) || '' === $secret || Helper::get_api_secret() !== $secret ) {
 			// set status code to 401.
 			status_header( 401 );
 
@@ -103,50 +103,31 @@ class PackageUpdate {
 			);
 		}
 
+		// Manual deploys and existing CI calls have no push payload. Provider
+		// webhooks carry refs, including tag pushes and branch deletions.
+		$payload = $request->get_json_params();
+		if ( ! $payload && is_string( $request->get_param( 'payload' ) ) ) {
+			$payload = json_decode( $request->get_param( 'payload' ), true );
+		}
+		if ( ! self::matches_push( $payload, $package_details['branch'], $request ) ) {
+			return array( 'success' => true, 'skipped' => true, 'message' => 'No matching branch push.' );
+		}
+
 		$logger        = new Logger();
 		$started_at    = microtime( true );
-		$deployment_id = uniqid( 'dfg-', true );
+		$deployment_id = uniqid( 'gitomatic-wp-', true );
 		$log_context   = array(
 			'deployment_id' => $deployment_id,
 			'package_type'  => $package_type,
-			'package_slug'  => $package_slug,
+			'package_slug'  => $package_details['slug'],
+			'instance_id'   => $package_slug,
 			'provider'      => $package_details['provider'],
 			'branch'        => $package_details['branch'],
 			'trigger'       => 'rest',
 		);
 		$logger->log_event( 'deployment.started', 'info', 'Deployment started.', $log_context );
 
-		try {
-			$provider_class_name = Helper::get_provider_class( $package_details['provider'] );
-
-			$provider = new $provider_class_name( $package_details['repo_url'] );
-
-			$package_slug    = $provider->get_package_slug();
-			$package_zip_url = $provider->get_zip_repo_url( $package_details['branch'] );
-
-			// If the provider is GitHub, we need to do some additional checks.
-			if ( $provider instanceof \DeployerForGit\Providers\GithubProvider ) {
-				$github_token    = isset( $package_details['options']['access_token'] ) ? $package_details['options']['access_token'] : '';
-				$package_zip_url = $provider->get_zip_repo_url( $package_details['branch'], $github_token );
-			}
-
-			$package_install_options = array(
-				'branch' => isset( $package_details['branch'] ) ? $package_details['branch'] : '',
-			);
-
-			if ( array_key_exists( 'is_private_repository', $package_details ) && $package_details['is_private_repository'] === true ) {
-				$package_install_options['is_private_repository'] = true;
-				$package_install_options['username']              = isset( $package_details['options']['username'] ) ? $package_details['options']['username'] : '';
-				$package_install_options['password']              = isset( $package_details['options']['password'] ) ? $package_details['options']['password'] : '';
-				$package_install_options['access_token']          = isset( $package_details['options']['access_token'] ) ? $package_details['options']['access_token'] : '';
-			}
-
-			$package_install_options['wp_json_request'] = true;
-
-			$install_result = InstallPackage::install_package_from_zip_url( $package_zip_url, $package_slug, $package_type, $package_details['provider'], $package_install_options );
-		} catch ( \Exception $e ) {
-			$install_result = new \WP_Error( 'invalid', $e->getMessage() );
-		}
+		$install_result = Deployments::deploy( $package_details, $package_type, true );
 
 		$success = ( is_wp_error( $install_result ) ? false : true );
 		$message = '';
@@ -154,7 +135,7 @@ class PackageUpdate {
 		if ( $success ) {
 			$log_context['duration_ms'] = (int) round( ( microtime( true ) - $started_at ) * 1000 );
 			$logger->log_event( 'deployment.succeeded', 'info', 'Package updated successfully.', $log_context );
-			$message = esc_attr__( 'Package updated successfully.', 'deployer-for-git' );
+			$message = esc_attr__( 'Package updated successfully.', 'gitomatic-wp' );
 
 			$flush_cache_setting_enabled = $data_manager->get_flush_cache_setting();
 			if ( $flush_cache_setting_enabled ) {
@@ -162,12 +143,12 @@ class PackageUpdate {
 				try {
 					Helper::trigger_cache_flush();
 					$logger->log_event( 'cache_flush.succeeded', 'info', 'Cache flushed successfully.', $log_context );
-					$message .= ' ' . esc_attr__( 'Cache flushed.', 'deployer-for-git' );
+					$message .= ' ' . esc_attr__( 'Cache flushed.', 'gitomatic-wp' );
 				} catch ( \Throwable $e ) {
 					$cache_context               = $log_context;
 					$cache_context['error_code'] = 'cache_flush_failed';
 					$logger->log_event( 'cache_flush.failed', 'error', $e->getMessage(), $cache_context );
-					$message .= ' ' . esc_attr__( 'Cache flush failed.', 'deployer-for-git' );
+					$message .= ' ' . esc_attr__( 'Cache flush failed.', 'gitomatic-wp' );
 				}
 			}
 		} elseif ( is_wp_error( $install_result ) ) {
@@ -183,13 +164,42 @@ class PackageUpdate {
 			$message = $error_message;
 		}
 
-		do_action( 'dfg_after_api_package_update', $success, $package_slug, $package_type );
+		do_action( 'gitomatic_wp_after_api_package_update', $success, $package_slug, $package_type );
 
-		return array(
+		$response = array(
 			'success'      => $success,
 			'message'      => $message,
 			'package_type' => $package_type,
-			'package_slug' => $package_slug,
+			'package_slug' => $package_details['slug'],
+			'instance_id'  => $package_slug,
+			'last_deploy'  => ( $success ? __( 'Succeeded', 'gitomatic-wp' ) : __( 'Failed', 'gitomatic-wp' ) ) . ' · ' . current_time( 'mysql' ),
 		);
+		if ( is_wp_error( $install_result ) && 'deployment_busy' === $install_result->get_error_code() ) {
+			return new \WP_REST_Response( $response, 503, array( 'Retry-After' => '10' ) );
+		}
+		return $response;
 	}
+
+	private static function matches_push( $payload, $branch, $request ) {
+		foreach ( array( 'x-github-event', 'x-gitea-event', 'x-gitlab-event', 'x-event-key' ) as $header ) {
+			$event = $request->get_header( $header );
+			if ( $event && ! in_array( strtolower( $event ), array( 'push', 'push hook', 'repo:push' ), true ) ) {
+				return false;
+			}
+		}
+		if ( isset( $payload['ref'] ) ) {
+			return 'refs/heads/' . $branch === $payload['ref'] && empty( $payload['deleted'] )
+				&& ! preg_match( '/^0+$/', $payload['after'] ?? '' );
+		}
+		if ( isset( $payload['push']['changes'] ) ) {
+			foreach ( $payload['push']['changes'] as $change ) {
+				if ( 'branch' === ( $change['new']['type'] ?? '' ) && $branch === ( $change['new']['name'] ?? '' ) ) {
+					return true;
+				}
+			}
+			return false;
+		}
+		return true;
+	}
+
 }

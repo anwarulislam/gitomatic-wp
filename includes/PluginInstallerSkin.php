@@ -1,5 +1,5 @@
 <?php
-namespace DeployerForGit;
+namespace GitomaticWP;
 
 if ( ! class_exists( 'WP_Upgrader_Skin' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader-skin.php';
@@ -12,9 +12,15 @@ if ( ! class_exists( 'Plugin_Installer_Skin' ) ) {
 /**
  * Class PluginInstallerSkin
  *
- * @package DeployerForGit
+ * @package GitomaticWP
  */
 class PluginInstallerSkin extends \Plugin_Installer_Skin {
+
+	private $deployment_errors;
+
+	public function get_errors() {
+		return $this->deployment_errors;
+	}
 
 	/**
 	 * Override header method with empty function.
@@ -40,13 +46,13 @@ class PluginInstallerSkin extends \Plugin_Installer_Skin {
 	 * @param string|\WP_Error $errors Errors.
 	 */
 	public function error( $errors ) {
-		if ( ! is_wp_error( $this->errors ) ) {
-			$this->errors = new \WP_Error();
+		if ( ! is_wp_error( $this->deployment_errors ) ) {
+			$this->deployment_errors = new \WP_Error();
 		}
 		if ( is_wp_error( $errors ) ) {
-			$this->errors->merge_from( $errors );
+			$this->deployment_errors->merge_from( $errors );
 		} elseif ( is_string( $errors ) ) {
-			$this->errors->add( 'error', $errors );
+			$this->deployment_errors->add( 'error', $errors );
 		}
 	}
 

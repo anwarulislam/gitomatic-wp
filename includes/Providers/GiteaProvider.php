@@ -1,11 +1,11 @@
 <?php
 
-namespace DeployerForGit\Providers;
+namespace GitomaticWP\Providers;
 
 /**
  * Class GiteaProvider
  *
- * @package Wp_Git_Deployer
+ * @package Gitomatic_WP
  */
 class GiteaProvider extends BaseProvider {
 
@@ -25,6 +25,7 @@ class GiteaProvider extends BaseProvider {
 	 * @return string           Repository URL to download zip
 	 */
 	public function get_zip_repo_url( $branch = 'master' ) {
+		$branch = rawurlencode( $branch );
 		$handle = $this->get_handle();
 		$domain = $this->get_domain();
 
@@ -44,7 +45,7 @@ class GiteaProvider extends BaseProvider {
 		}
 		return array(
 			'Authorization' => 'token ' . $token,
-			'User-Agent'    => 'WordPress/DeployerForGit',
+			'User-Agent'    => 'WordPress/GitomaticWP',
 		);
 	}
 
@@ -58,7 +59,7 @@ class GiteaProvider extends BaseProvider {
 
 		// check if string is a valid url.
 		if ( ! preg_match( '/^https?:\/\/[^\/]+\/[^\/]+\/[^\/]+$/', $this->get_repo_url() ) ) {
-			return new \WP_Error( 'invalid', __( 'Repository url must be a valid Gitea repository url', 'deployer-for-git' ) );
+			return new \WP_Error( 'invalid', __( 'Repository url must be a valid Gitea repository url', 'gitomatic-wp' ) );
 		}
 	}
 }

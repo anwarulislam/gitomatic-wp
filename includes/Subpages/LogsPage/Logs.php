@@ -1,7 +1,7 @@
 <?php
-namespace DeployerForGit\Subpages\LogsPage;
+namespace GitomaticWP\Subpages\LogsPage;
 
-use DeployerForGit\Logger;
+use GitomaticWP\Logger;
 
 /**
  * Logs page
@@ -13,7 +13,7 @@ class Logs {
 	 */
 	public function __construct() {
 		add_action( is_multisite() ? 'network_admin_menu' : 'admin_menu', array( $this, 'init_menu' ) );
-		add_action( 'admin_post_dfg_download_log', array( $this, 'handle_download' ) );
+		add_action( 'admin_post_gitomatic_wp_download_log', array( $this, 'handle_download' ) );
 	}
 
 	/**
@@ -22,13 +22,13 @@ class Logs {
 	 * @return void
 	 */
 	public function init_menu() {
-		$menu_slug  = \DeployerForGit\Helper::menu_slug();
+		$menu_slug  = \GitomaticWP\Helper::menu_slug();
 		$capability = is_multisite() ? 'manage_network_options' : 'manage_options';
 
 		add_submenu_page(
 			$menu_slug,
-			esc_attr__( 'Logs', 'deployer-for-git' ),
-			esc_attr__( 'Logs', 'deployer-for-git' ),
+			esc_attr__( 'Logs', 'gitomatic-wp' ),
+			esc_attr__( 'Logs', 'gitomatic-wp' ),
 			$capability,
 			"{$menu_slug}-logs",
 			array( $this, 'init_page' )
@@ -92,8 +92,8 @@ class Logs {
 			)
 		);
 		$download_url  = wp_nonce_url(
-			admin_url( 'admin-post.php?action=dfg_download_log' ),
-			DFG_SLUG . '_download_log'
+			admin_url( 'admin-post.php?action=gitomatic_wp_download_log' ),
+			GITOMATIC_WP_SLUG . '_download_log'
 		);
 
 		include_once __DIR__ . '/template.php';
@@ -116,7 +116,7 @@ class Logs {
 			return;
 		}
 
-		if ( isset( $_POST[ DFG_SLUG . '_nonce' ] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ DFG_SLUG . '_nonce' ] ) ), DFG_SLUG . '_clear_log_file' ) ) {
+		if ( isset( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) ), GITOMATIC_WP_SLUG . '_clear_log_file' ) ) {
 			$logger           = new Logger();
 			$clear_log_result = $logger->clear_log_file();
 			$form_submitted   = true;
@@ -132,18 +132,18 @@ class Logs {
 		$capability = is_multisite() ? 'manage_network_options' : 'manage_options';
 		if ( ! current_user_can( $capability ) ) {
 			wp_die(
-				esc_html__( 'You are not allowed to download these logs.', 'deployer-for-git' ),
+				esc_html__( 'You are not allowed to download these logs.', 'gitomatic-wp' ),
 				'',
 				array( 'response' => 403 )
 			);
 		}
 
-		check_admin_referer( DFG_SLUG . '_download_log' );
+		check_admin_referer( GITOMATIC_WP_SLUG . '_download_log' );
 
 		$logger = new Logger();
 		nocache_headers();
 		header( 'Content-Type: text/plain; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename="deployer-for-git-logs-' . gmdate( 'Y-m-d' ) . '.log"' );
+		header( 'Content-Disposition: attachment; filename="gitomatic-wp-logs-' . gmdate( 'Y-m-d' ) . '.log"' );
 		// Log entries are sanitized before they are written and this response is a download.
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo $logger->get_download_content();

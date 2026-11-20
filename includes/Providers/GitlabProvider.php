@@ -1,11 +1,11 @@
 <?php
 
-namespace DeployerForGit\Providers;
+namespace GitomaticWP\Providers;
 
 /**
  * Class GitlabProvider
  *
- * @package DeployerForGit\Providers
+ * @package GitomaticWP\Providers
  */
 class GitlabProvider extends BaseProvider {
 
@@ -25,6 +25,7 @@ class GitlabProvider extends BaseProvider {
 	 * @return string           Repository URL to download zip
 	 */
 	public function get_zip_repo_url( $branch = 'master' ) {
+		$branch = rawurlencode( $branch );
 		$handle = $this->get_handle();
 		$domain = $this->get_domain();
 		$handle = rawurlencode( $handle );
@@ -45,7 +46,7 @@ class GitlabProvider extends BaseProvider {
 		}
 		return array(
 			'PRIVATE-TOKEN' => $token,
-			'User-Agent'    => 'WordPress/DeployerForGit',
+			'User-Agent'    => 'WordPress/GitomaticWP',
 		);
 	}
 
@@ -55,7 +56,7 @@ class GitlabProvider extends BaseProvider {
 
 	// check if string has exact format in a URL like this: https://gitlab.com/owner/reponame .
 	// if ( ! preg_match( '/^https?:\/\/[^\/]+(\/[^\/]+)+$/', $this->get_repo_url() ) ) {
-	// return new \WP_Error( 'invalid', __( 'Repository url must be a valid GitLab repository url', 'deployer-for-git' ) );
+	// return new \WP_Error( 'invalid', __( 'Repository url must be a valid GitLab repository url', 'gitomatic-wp' ) );
 	// }
 	// }.
 }

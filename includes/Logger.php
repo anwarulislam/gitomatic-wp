@@ -1,6 +1,6 @@
 <?php
 
-namespace DeployerForGit;
+namespace GitomaticWP;
 
 /**
  * File-based structured activity logger.
@@ -27,7 +27,7 @@ class Logger {
 	/** Constructor. */
 	public function __construct() {
 		$upload_dir          = wp_upload_dir();
-		$this->log_directory = trailingslashit( $upload_dir['basedir'] ) . DFG_SLUG . '-logs';
+		$this->log_directory = trailingslashit( $upload_dir['basedir'] ) . GITOMATIC_WP_SLUG . '-logs';
 
 		$this->create_log_directory();
 		$this->create_protection_files();
@@ -86,7 +86,7 @@ class Logger {
 		 * @param array  $record      Structured event record.
 		 * @param bool   $result      Whether the write succeeded.
 		 */
-		do_action( 'dfg_after_log', $legacy_line, $record, $result );
+		do_action( 'gitomatic_wp_after_log', $legacy_line, $record, $result );
 
 		return $result;
 	}
@@ -150,7 +150,7 @@ class Logger {
 	public function display_log_content() {
 		$content = $this->get_download_content();
 
-		return '' === $content ? __( 'No log entries found.', 'deployer-for-git' ) : $content;
+		return '' === $content ? __( 'No log entries found.', 'gitomatic-wp' ) : $content;
 	}
 
 	/**
@@ -239,7 +239,7 @@ class Logger {
 	private function maybe_rotate( $incoming_size ) {
 		$current_size = file_exists( $this->log_file_path ) ? filesize( $this->log_file_path ) : 0;
 		$current_size = false === $current_size ? 0 : $current_size;
-		$max_size     = max( 1024, (int) apply_filters( 'dfg_log_max_file_size', self::DEFAULT_MAX_FILE_SIZE ) );
+		$max_size     = max( 1024, (int) apply_filters( 'gitomatic_wp_log_max_file_size', self::DEFAULT_MAX_FILE_SIZE ) );
 
 		if ( 0 === $current_size || $current_size + $incoming_size <= $max_size ) {
 			return;
@@ -406,7 +406,7 @@ class Logger {
 	 * @return int Retained rotated file count.
 	 */
 	private function get_retained_file_count() {
-		return max( 1, min( 20, (int) apply_filters( 'dfg_log_retained_files', self::DEFAULT_RETAINED_FILES ) ) );
+		return max( 1, min( 20, (int) apply_filters( 'gitomatic_wp_log_retained_files', self::DEFAULT_RETAINED_FILES ) ) );
 	}
 
 	/**
@@ -415,7 +415,7 @@ class Logger {
 	 * @return string Opaque filename.
 	 */
 	private function get_log_filename() {
-		$option_name = DFG_SLUG . '_log_filename';
+		$option_name = GITOMATIC_WP_SLUG . '_log_filename';
 		$filename    = get_option( $option_name, '' );
 
 		if ( ! is_string( $filename ) || ! preg_match( '/^plugin-[a-zA-Z0-9]+\.log$/', $filename ) ) {

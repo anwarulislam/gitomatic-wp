@@ -1,5 +1,5 @@
 <?php
-namespace DeployerForGit\Providers;
+namespace GitomaticWP\Providers;
 
 /**
  * Base provider class
@@ -30,10 +30,11 @@ class BaseProvider {
 	 * @return void
 	 */
 	public function __construct( $repo_url = null, $options = array() ) {
-		$this->repo_url = $repo_url;
+		$this->repo_url = is_string( $repo_url ) ? rtrim( trim( $repo_url ), '/' ) : $repo_url;
 		$this->options  = $options;
-		if ( is_wp_error( $this->validate_repo_url() ) ) {
-			throw new \InvalidArgumentException( esc_attr( $this->validate_repo_url()->get_error_message() ) );
+		$valid = $this->validate_repo_url();
+		if ( is_wp_error( $valid ) ) {
+			throw new \InvalidArgumentException( $valid->get_error_message() );
 		}
 	}
 
@@ -54,12 +55,12 @@ class BaseProvider {
 	protected function validate_repo_url() {
 		// check if the repo url is empty.
 		if ( empty( $this->repo_url ) ) {
-			return new \WP_Error( 'empty', __( 'Repository url required', 'deployer-for-git' ) );
+			return new \WP_Error( 'empty', __( 'Repository url required', 'gitomatic-wp' ) );
 		}
 
 		// check if the repo url is a valid url.
 		if ( ! filter_var( $this->repo_url, FILTER_VALIDATE_URL ) ) {
-			return new \WP_Error( 'invalid', __( 'Repository url must be a url', 'deployer-for-git' ) );
+			return new \WP_Error( 'invalid', __( 'Repository url must be a url', 'gitomatic-wp' ) );
 		}
 	}
 
@@ -90,19 +91,8 @@ class BaseProvider {
 	 */
 	protected function get_handle() {
 		$parsed_url = wp_parse_url( $this->repo_url );
-		$parts      = explode( '/', $parsed_url['path'] );
-		$handle     = '';
-		foreach ( $parts as $index => $part ) {
-			if ( $index === 0 ) {
-				continue;
-			}
-			$handle .= $part . '/';
-
-			// if end of the path, remove the trailing slash.
-			if ( $index === count( $parts ) - 1 ) {
-				$handle = rtrim( $handle, '/' );
-			}
-		}
+		$path       = isset( $parsed_url['path'] ) ? trim( $parsed_url['path'], '/' ) : '';
+		$handle     = preg_replace( '/\.git$/i', '', $path );
 
 		return $handle;
 	}
@@ -113,7 +103,7 @@ class BaseProvider {
 	protected function get_domain() {
 		$parsed_url = wp_parse_url( $this->repo_url );
 
-		return $parsed_url['host'];
+		return $parsed_url['host'] . ( isset( $parsed_url['port'] ) ? ':' . $parsed_url['port'] : '' );
 	}
 
 	/**

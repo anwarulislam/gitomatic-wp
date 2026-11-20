@@ -1,14 +1,14 @@
 <?php
-namespace DeployerForGit\Subpages\EditPackagePage;
+namespace GitomaticWP\Subpages\EditPackagePage;
 
-use DeployerForGit\DataManager;
-use DeployerForGit\Logger;
-use DeployerForGit\Helper;
+use GitomaticWP\DataManager;
+use GitomaticWP\Logger;
+use GitomaticWP\Helper;
 
 /**
  * Class EditPackage
  *
- * @package DeployerForGit\Subpages\EditPackagePage
+ * @package GitomaticWP\Subpages\EditPackagePage
  */
 class EditPackage {
 
@@ -30,7 +30,7 @@ class EditPackage {
 
 		add_submenu_page(
 			null,
-			esc_attr__( 'Edit Package', 'deployer-for-git' ),
+			esc_attr__( 'Edit Package', 'gitomatic-wp' ),
 			'',
 			$capability,
 			"{$menu_slug}-edit-package",
@@ -61,13 +61,18 @@ class EditPackage {
 		}
 
 		if ( ! $package_data ) {
-			$edit_error = new \WP_Error( 'not_found', __( 'Package not found.', 'deployer-for-git' ) );
+			$edit_error = new \WP_Error( 'not_found', __( 'Package not found.', 'gitomatic-wp' ) );
 			include_once __DIR__ . '/template.php';
 			return;
 		}
 
 		// Handle form submission.
-		$edit_result = $this->handle_edit_form( $package_data, $package_type, $data_manager );
+		$edit_result = null;
+		if ( isset( $_POST[ GITOMATIC_WP_SLUG . '_edit_package_submitted' ] ) ) {
+			$edit_result = \GitomaticWP\Deployments::locked( function () use ( $package_data, $package_type, $data_manager ) {
+				return $this->handle_edit_form( $package_data, $package_type, $data_manager );
+			} );
+		}
 
 		// Re-read package data after a successful save so the template shows updated values.
 		if ( $edit_result === true ) {
@@ -90,15 +95,15 @@ class EditPackage {
 	 * @return \WP_Error|bool|null WP_Error on failure, true on success, null if not submitted.
 	 */
 	private function handle_edit_form( $package_data, $package_type, $data_manager ) {
-		if ( ! isset( $_POST[ DFG_SLUG . '_edit_package_submitted' ] ) ) {
+		if ( ! isset( $_POST[ GITOMATIC_WP_SLUG . '_edit_package_submitted' ] ) ) {
 			return null;
 		}
 
 		// Verify nonce.
-		$nonce = isset( $_POST[ DFG_SLUG . '_nonce' ] ) ? sanitize_text_field( wp_unslash( $_POST[ DFG_SLUG . '_nonce' ] ) ) : '';
+		$nonce = isset( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) ? sanitize_text_field( wp_unslash( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) ) : '';
 
-		if ( ! wp_verify_nonce( $nonce, DFG_SLUG . '_edit_package_form' ) ) {
-			return new \WP_Error( 'invalid', __( 'Invalid nonce.', 'deployer-for-git' ) );
+		if ( ! wp_verify_nonce( $nonce, GITOMATIC_WP_SLUG . '_edit_package_form' ) ) {
+			return new \WP_Error( 'invalid', __( 'Invalid nonce.', 'gitomatic-wp' ) );
 		}
 
 		// phpcs:disable WordPress.Security.NonceVerification.Missing
@@ -109,27 +114,36 @@ class EditPackage {
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		if ( '' === $branch ) {
-			return new \WP_Error( 'invalid_branch', __( 'Branch is required.', 'deployer-for-git' ) );
+			return new \WP_Error( 'invalid_branch', __( 'Branch is required.', 'gitomatic-wp' ) );
 		}
 
+		$list = 'theme' === $package_type ? $data_manager->get_theme_list() : $data_manager->get_plugin_list();
+		foreach ( $list as $record ) {
+			if ( DataManager::instance_id( $record ) !== DataManager::instance_id( $package_data ) && $record['slug'] === $package_data['slug'] && $record['branch'] === $branch ) {
+				return new \WP_Error( 'duplicate_branch', __( 'This folder already has a deployment for that branch.', 'gitomatic-wp' ) );
+			}
+		}
+		$original = $package_data;
 		$package_data['branch'] = $branch;
 
 		// Public packages do not show credential fields, so preserve their options.
 		if ( $package_data['is_private_repository'] ) {
 			$package_data['options'] = array(
 				'username'     => $username,
-				'password'     => $password,
-				'access_token' => $access_token,
+				'password'     => '' !== $password ? $password : ( $package_data['options']['password'] ?? '' ),
+				'access_token' => '' !== $access_token ? $access_token : ( $package_data['options']['access_token'] ?? '' ),
 			);
 		}
 
-		$data_manager->store_package_details( $package_data, $package_type );
+		if ( $package_data !== $original && ! $data_manager->store_package_details( $package_data, $package_type ) ) {
+			return new \WP_Error( 'save_failed', __( 'WordPress could not save these settings.', 'gitomatic-wp' ) );
+		}
 
 		$logger = new Logger();
 		$logger->log_event(
 			'package.settings_updated',
 			'info',
-			__( 'Package settings updated.', 'deployer-for-git' ),
+			__( 'Package settings updated.', 'gitomatic-wp' ),
 			array(
 				'package_type' => $package_type,
 				'package_slug' => $package_data['slug'],

@@ -1,8 +1,8 @@
 <?php
-namespace DeployerForGit\Subpages\MiscellaneousPage;
+namespace GitomaticWP\Subpages\MiscellaneousPage;
 
-use DeployerForGit\DataManager;
-use DeployerForGit\Helper;
+use GitomaticWP\DataManager;
+use GitomaticWP\Helper;
 
 /**
  * Miscellaneous page
@@ -27,8 +27,8 @@ class Miscellaneous {
 
 		add_submenu_page(
 			$menu_slug,
-			esc_attr__( 'Miscellaneous', 'deployer-for-git' ),
-			esc_attr__( 'Miscellaneous', 'deployer-for-git' ),
+			esc_attr__( 'Miscellaneous', 'gitomatic-wp' ),
+			esc_attr__( 'Miscellaneous', 'gitomatic-wp' ),
 			$capability,
 			"{$menu_slug}-miscellaneous",
 			array( $this, 'init_page' )
@@ -60,11 +60,11 @@ class Miscellaneous {
 		if ( isset( $_POST['action'] ) && $_POST['action'] === 'regenerate_secret_key' ) {
 			$result = false;
 
-			if ( isset( $_POST[ DFG_SLUG . '_nonce' ] ) || wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ DFG_SLUG . '_nonce' ] ) ), DFG_SLUG . '_regenerate_secret_key' ) ) {
+			if ( isset( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) || wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) ), GITOMATIC_WP_SLUG . '_regenerate_secret_key' ) ) {
 				$result = true;
 				Helper::generate_api_secret();
 
-				do_action( 'dfg_after_secret_key_regenerate' );
+				do_action( 'gitomatic_wp_after_secret_key_regenerate' );
 			}
 		}
 
@@ -82,12 +82,12 @@ class Miscellaneous {
 		if ( isset( $_POST['action'] ) && $_POST['action'] === 'flush_cache' ) {
 			$result = false;
 
-			if ( isset( $_POST[ DFG_SLUG . '_nonce' ] ) || wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ DFG_SLUG . '_nonce' ] ) ), DFG_SLUG . '_flush_cache' ) ) {
+			if ( isset( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) || wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) ), GITOMATIC_WP_SLUG . '_flush_cache' ) ) {
 				$data_manager = new DataManager();
 
 				$result = $data_manager->update_flush_cache_setting( isset( $_POST['flush_cache_setting'] ) );
 
-				do_action( 'dfg_after_flush_cache_setting_update' );
+				do_action( 'gitomatic_wp_after_flush_cache_setting_update' );
 			}
 		}
 
@@ -105,12 +105,12 @@ class Miscellaneous {
 		if ( isset( $_POST['action'] ) && $_POST['action'] === 'alert_notification' ) {
 			$result = false;
 
-			if ( isset( $_POST[ DFG_SLUG . '_nonce' ] ) || wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ DFG_SLUG . '_nonce' ] ) ), DFG_SLUG . '_alert_notification' ) ) {
+			if ( isset( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) || wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ GITOMATIC_WP_SLUG . '_nonce' ] ) ), GITOMATIC_WP_SLUG . '_alert_notification' ) ) {
 				$data_manager = new DataManager();
 
 				$result = $data_manager->update_alert_notification_setting( isset( $_POST['alert_notification_setting'] ) );
 
-				do_action( 'dfg_after_alert_notification_setting_update' );
+				do_action( 'gitomatic_wp_after_alert_notification_setting_update' );
 			}
 		}
 

@@ -6,5 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'DeployerForGit\\' => array($baseDir . '/includes'),
+    'GitomaticWP\\' => array($baseDir . '/includes'),
 );

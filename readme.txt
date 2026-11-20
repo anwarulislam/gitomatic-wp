@@ -1,4 +1,4 @@
-=== Deployer for Git ===
+=== Gitomatic WP ===
 Contributors: alex91ckua, freemius
 
 Tags: git, deployment, automator, updater
@@ -7,7 +7,7 @@ Requires at least: 4.6
 
 Tested up to: 7.1
 
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 
 License: GPL-3.0
 
@@ -18,7 +18,9 @@ License URI: http://www.gnu.org/licenses/gpl-3.0.html
 Install and update plugins (and themes) hosted on your repo hosted on GitHub, Bitbucket, GitLab, or Gitea in a single click.
 
 == Description ==
-The Deployer for Git (and [Deployer for Git Pro](https://deployer-for-git.com/)) are designed for developers who seek to simplify their website changes deployment. Connect your WordPress site to Git repositories and automatically deploy updates whenever you push new code. This plugin makes it easy. No FTP, no zipping files. Supports all popular services.
+Deploy WordPress plugins and themes from GitHub, Bitbucket, GitLab, or Gitea. In Deployments, choose Add deployment, enter the repository, select a branch, and review the destination folder.
+
+Use Add another branch to deploy into the same installation or choose a separate folder for an inactive copy. When branches share a folder, the most recent successful deployment supplies its files. Each saved branch has its own webhook URL. Configure your CI job to call that URL when its branch is pushed.
 
 == Screenshots ==
 1. Dashboard
@@ -28,13 +30,13 @@ The Deployer for Git (and [Deployer for Git Pro](https://deployer-for-git.com/))
 == Frequently Asked Questions ==
 = Do I need Git installed on the server? =
 
-No. Deployer for Git does not require Git to be installed on the server.
+No. Gitomatic WP does not require Git to be installed on the server.
 
 = I have shared/cheap hosting, will it work on my server? =
 
 Yes, as long as your server runs WordPress, the plugin will work fine.
 
-= What git repositories are supported by Deployer For Git? =
+= What git repositories are supported by Gitomatic WP? =
 
 The plugin supports Bitbucket, GitHub, Gitea, and GitLab repositories.
 
@@ -42,31 +44,36 @@ The plugin supports Bitbucket, GitHub, Gitea, and GitLab repositories.
 
 Yes, it's possible. Plugin supports WP Rocket, WP-Optimize W3 Total Cache, LiteSpeed Cache, WP Super Cache, WP Fastest Cache and Autoptimize.
 
-= How does Deployer For Git improve website management? =
+= How does Gitomatic WP improve website management? =
 
 By automating the deployment process. Once set up, the plugin automatically updates your WordPress instance after each commit of the desired branch to your git repository, eliminating the need for manual file transfers via FTP.
 
-= Can I use Deployer For Git for multiple websites? =
+= Can I use Gitomatic WP for multiple websites? =
 
 Yes, the plugin can be used for multiple websites. Each website will require its own setup to connect to the respective git repository.
 
-= Is there a cost associated with Deployer For Git? =
+= Is there a cost associated with Gitomatic WP? =
 
-The PRO version is required if you plan to use the plugin with private repositories.
+Public and private repository deployments are free.
 
 = Does it support WordPress Multisite? =
 
 Yes, it does.
 
-= Is there any risk of data loss when using Deployer For Git? =
+= Is there any risk of data loss when using Gitomatic WP? =
 
 The plugin is designed to safely update your website with the latest changes from your git repository. However, as with any deployment tool, it\'s always recommended to have regular backups of your site.
 
 = Does it support WP-CLI? =
 
-Yes, it does.
+Use wp gitomatic-wp list to see deployments. Run wp help gitomatic-wp for installation and update commands.
 
 == Changelog ==
+= 1.3.0 =
+* Added a branch selector and a single deployment setup screen.
+* Deploy multiple branches into one installation or keep separate plugin and theme copies.
+* Added branch-specific webhook handling and removed the paid plan integration.
+
 = 1.2.0 =
 * Improved the admin deployment warning
 * Revised Logs page now includes searchable, filterable deployment activity view

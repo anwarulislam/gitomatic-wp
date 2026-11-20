@@ -1,5 +1,5 @@
 <?php
-namespace DeployerForGit;
+namespace GitomaticWP;
 
 /**
  * Helper class
@@ -12,7 +12,7 @@ class Helper {
 	 * @return string
 	 */
 	public static function menu_slug() {
-		return 'deployer-for-git';
+		return 'gitomatic-wp';
 	}
 
 	/**
@@ -78,20 +78,20 @@ class Helper {
 		// phpcs:disable Squiz.PHP.NonExecutableCode.Unreachable
 		switch ( $provider ) {
 			case 'bitbucket':
-				return '\DeployerForGit\Providers\BitbucketProvider';
+				return '\GitomaticWP\Providers\BitbucketProvider';
 			break;
 			case 'github':
-				return '\DeployerForGit\Providers\GithubProvider';
+				return '\GitomaticWP\Providers\GithubProvider';
 			break;
 			case 'gitea':
-				return '\DeployerForGit\Providers\GiteaProvider';
+				return '\GitomaticWP\Providers\GiteaProvider';
 			break;
 			case 'gitlab':
-				return '\DeployerForGit\Providers\GitlabProvider';
+				return '\GitomaticWP\Providers\GitlabProvider';
 			break;
 
 			default:
-				return '\DeployerForGit\Providers\BitbucketProvider';
+				return '\GitomaticWP\Providers\BitbucketProvider';
 			break;
 		}
 		// phpcs:enable Squiz.PHP.NonExecutableCode.Unreachable
@@ -104,7 +104,7 @@ class Helper {
 	 */
 	public static function generate_api_secret() {
 		$key = bin2hex( random_bytes( 32 ) );
-		return update_option( 'deployer_for_git_api_secret', $key );
+		return update_option( 'gitomatic_wp_api_secret', $key );
 	}
 
 	/**
@@ -113,7 +113,7 @@ class Helper {
 	 * @return string|boolean false
 	 */
 	public static function get_api_secret() {
-		return get_option( 'deployer_for_git_api_secret', false );
+		return get_option( 'gitomatic_wp_api_secret', false );
 	}
 
 	/**
@@ -270,11 +270,11 @@ class Helper {
 	 */
 	public static function format_error_message( $error ) {
 		if ( ! is_wp_error( $error ) ) {
-			return is_string( $error ) ? $error : __( 'An error occurred.', 'deployer-for-git' );
+			return is_string( $error ) ? $error : __( 'An error occurred.', 'gitomatic-wp' );
 		}
 
 		$messages     = $error->get_error_messages();
-		$main_message = ! empty( $messages ) ? implode( ' ', $messages ) : __( 'An error occurred.', 'deployer-for-git' );
+		$main_message = ! empty( $messages ) ? implode( ' ', $messages ) : __( 'An error occurred.', 'gitomatic-wp' );
 		$data         = $error->get_error_data();
 
 		$reason = '';

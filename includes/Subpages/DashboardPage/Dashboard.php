@@ -1,13 +1,13 @@
 <?php
-namespace DeployerForGit\Subpages\DashboardPage;
+namespace GitomaticWP\Subpages\DashboardPage;
 
-use DeployerForGit\DataManager;
-use DeployerForGit\Helper;
+use GitomaticWP\DataManager;
+use GitomaticWP\Helper;
 
 /**
  * Class Dashboard
  *
- * @package DeployerForGit\Subpages\DashboardPage
+ * @package GitomaticWP\Subpages\DashboardPage
  */
 class Dashboard {
 
@@ -26,8 +26,8 @@ class Dashboard {
 		$capability = is_multisite() ? 'manage_network_options' : 'manage_options';
 
 		add_menu_page(
-			esc_attr__( 'Dashboard', 'deployer-for-git' ),
-			esc_attr__( 'Deployer for Git', 'deployer-for-git' ),
+			esc_attr__( 'Deployments', 'gitomatic-wp' ),
+			esc_attr__( 'Gitomatic WP', 'gitomatic-wp' ),
 			$capability,
 			$menu_slug,
 			array( $this, 'init_page' ),
@@ -36,8 +36,8 @@ class Dashboard {
 
 		add_submenu_page(
 			$menu_slug,
-			esc_attr__( 'Dashboard', 'deployer-for-git' ),
-			esc_attr__( 'Dashboard', 'deployer-for-git' ),
+			esc_attr__( 'Deployments', 'gitomatic-wp' ),
+			esc_attr__( 'Deployments', 'gitomatic-wp' ),
 			$capability,
 			$menu_slug,
 			array( $this, 'init_page' )

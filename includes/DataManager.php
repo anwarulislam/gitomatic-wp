@@ -1,10 +1,16 @@
 <?php
-namespace DeployerForGit;
+namespace GitomaticWP;
 
 /**
  * Data Manager class
  */
 class DataManager {
+
+	// Legacy webhook URLs identify the original deployment by its folder.
+	public static function instance_id( $package ) {
+		return $package['instance_id'] ?? $package['slug'];
+	}
+
 
 	/**
 	 * Update flush cache setting
@@ -94,7 +100,7 @@ class DataManager {
 		 * @param bool   $should_reverify Whether to run the filesystem check. Default true.
 		 * @param string $type            Package type: 'theme' or 'plugin'.
 		 */
-		if ( ! apply_filters( 'dfg_reverify_packages', true, $type ) ) {
+		if ( ! apply_filters( 'gitomatic_wp_reverify_packages', true, $type ) ) {
 			return;
 		}
 
@@ -109,18 +115,17 @@ class DataManager {
 		$package_list = get_option( $option_name, array() );
 
 		foreach ( $package_list as $package_data ) {
-			if ( $type === 'theme' ) {
-				$theme = wp_get_theme( $package_data['slug'] );
-
-				if ( ! $theme->exists() ) {
-					$this->remove_package_details( $package_data['slug'], 'theme' );
-				}
-			} else {
-				$plugin_path = WP_PLUGIN_DIR . DIRECTORY_SEPARATOR . $package_data['slug'];
-
-				if ( ! file_exists( $plugin_path ) ) {
-					$this->remove_package_details( $package_data['slug'], 'plugin' );
-				}
+			$folder = $package_data['slug'];
+			$root = 'theme' === $type ? get_theme_root( $folder ) : WP_PLUGIN_DIR;
+			$path = trailingslashit( $root ) . $folder;
+			if ( ! is_dir( $path ) ) {
+				// A deployment can briefly move this directory while replacing files.
+				Deployments::locked( function () use ( $path, $package_data, $type ) {
+					clearstatcache( true, $path );
+					if ( ! is_dir( $path ) ) {
+						$this->remove_package_details( self::instance_id( $package_data ), $type );
+					}
+				} );
 			}
 		}
 	}
@@ -132,7 +137,7 @@ class DataManager {
 	 * @param string $type Type of package (theme or plugin).
 	 * @return array|bool Array of theme details if found, false otherwise.
 	 */
-	private function get_package( $slug = '', $type = 'theme' ) {
+	public function get_package( $slug = '', $type = 'theme' ) {
 		$type = ( $type === 'theme' ) ? 'theme' : 'plugin';
 
 		if ( $type === 'theme' ) {
@@ -143,7 +148,7 @@ class DataManager {
 
 		foreach ( $package_list as $package_details ) {
 			// If the theme_stylesheet matches the one we're looking to update.
-			if ( $package_details['slug'] === $slug ) {
+			if ( self::instance_id( $package_details ) === $slug ) {
 
 				return $package_details;
 			}
@@ -206,7 +211,7 @@ class DataManager {
 	 * @return string Option name for storing alert notification setting.
 	 */
 	private function get_alert_notification_option_name() {
-		return DFG_SLUG . '_alert_notification';
+		return GITOMATIC_WP_SLUG . '_alert_notification';
 	}
 
 	/**
@@ -215,7 +220,7 @@ class DataManager {
 	 * @return string Option name for storing flush cache setting.
 	 */
 	private function get_flush_cache_option_name() {
-		return DFG_SLUG . '_flush_cache';
+		return GITOMATIC_WP_SLUG . '_flush_cache';
 	}
 
 	/**
@@ -224,7 +229,7 @@ class DataManager {
 	 * @return string Option name for storing theme details.
 	 */
 	private function get_themes_option_name() {
-		return DFG_SLUG . '_themes_list';
+		return GITOMATIC_WP_SLUG . '_themes_list';
 	}
 
 	/**
@@ -233,7 +238,7 @@ class DataManager {
 	 * @return string Option name for storing plugin details.
 	 */
 	private function get_plugins_option_name() {
-		return DFG_SLUG . '_plugins_list';
+		return GITOMATIC_WP_SLUG . '_plugins_list';
 	}
 
 	/**
@@ -309,7 +314,7 @@ class DataManager {
 		// Iterate over each packages details.
 		foreach ( $packages_list as &$details ) {
 			// If the theme_stylesheet matches the one we're looking to update.
-			if ( $details['slug'] === $new_data['slug'] ) {
+			if ( self::instance_id( $details ) === self::instance_id( $new_data ) ) {
 				// Update theme data URL for this theme.
 				$details      = $new_data;
 				$data_updated = true;
@@ -360,7 +365,7 @@ class DataManager {
 		// Iterate over each theme's details.
 		foreach ( $packages_details as $key => $package_details ) {
 			// If the theme_stylesheet matches the one we're looking to update.
-			if ( $package_details['slug'] === $slug ) {
+			if ( self::instance_id( $package_details ) === $slug ) {
 				// Update theme data URL for this theme.
 				unset( $packages_details[ $key ] );
 
@@ -370,6 +375,13 @@ class DataManager {
 		}
 
 		// Save the updated theme details back to the options.
-		return update_option( $option_name, $packages_details );
+		$removed = update_option( $option_name, $packages_details );
+		if ( $removed ) {
+			delete_option( 'gitomatic_wp_result_' . md5( $type . '/' . $slug ) );
+			if ( ! in_array( $package_details['slug'], array_column( $packages_details, 'slug' ), true ) ) {
+				delete_option( 'gitomatic_wp_live_' . md5( $type . '/' . $package_details['slug'] ) );
+			}
+		}
+		return $removed;
 	}
 }

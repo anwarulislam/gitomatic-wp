@@ -1,12 +1,12 @@
 <?php
-namespace DeployerForGit;
+namespace GitomaticWP;
 
 require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader-skin.php';
 
 /**
  * Class WPUpgraderSkin
  *
- * @package DeployerForGit
+ * @package GitomaticWP
  */
 class WPUpgraderSkin extends \WP_Upgrader_Skin {
 
