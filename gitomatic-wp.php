@@ -9,7 +9,7 @@
  * @wordpress-plugin
  * Plugin Name:       Gitomatic WP
  * Description:       This plugin can install and automatically update themes and plugins hosted on GitHub, Bitbucket, GitLab, or Gitea.
- * Version:           1.3.0
+ * Version:           1.3.1
  * Author:            Anwarul Islam
  * Author URI:        https://anwar.bd/
  * License:           GPL-3.0

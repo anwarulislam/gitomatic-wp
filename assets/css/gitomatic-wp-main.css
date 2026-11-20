@@ -727,20 +727,7 @@
   color: var(--wp-admin-theme-color, #2271b1);
 }
 
-.gitomatic-wp-editor-form {
-	max-width: 40rem;
-	padding: 1.5rem;
-	margin-top: 1rem;
-	background: #fff;
-	border: 1px solid #c3c4c7;
-}
-.gitomatic-wp-editor-form > label, .gitomatic-wp-editor-form #gitomatic-wp-folder label, #gitomatic-wp-credentials label, .gitomatic-wp-editor-form legend {
-	display: block;
-	margin: 1rem 0 .35rem;
-	font-weight: 600;
-}
-.gitomatic-wp-editor-form fieldset { margin: 1rem 0; }
-.gitomatic-wp-editor-form fieldset label { display: block; margin-top: .6rem; }
+.gitomatic-wp-editor-form output { overflow-wrap: anywhere; }
 .gitomatic-wp-editor-form [hidden] { display: none !important; }
 
 .gitomatic_wp_dashboard [hidden], #gitomatic-wp-branch-select[hidden], #repository_branch[hidden] { display: none !important; }

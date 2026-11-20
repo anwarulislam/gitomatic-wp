@@ -77,13 +77,11 @@ endif;
 		<input type="hidden" name="<?php echo esc_attr( GITOMATIC_WP_SLUG . '_edit_package_submitted' ); ?>" value="1">
 		<?php wp_nonce_field( GITOMATIC_WP_SLUG . '_edit_package_form', GITOMATIC_WP_SLUG . '_nonce' ); ?>
 
-		<table class="form-table">
-			<tr><td colspan="2">
-				<input type="hidden" name="source_id" value="<?php echo esc_attr( $package_slug ); ?>">
-				<input type="hidden" name="package_type" value="<?php echo esc_attr( $package_type ); ?>">
-				<?php $branch_value = $package_data['branch']; include dirname( __DIR__ ) . '/branch-field.php'; ?>
-				<p class="description"><?php esc_html_e( 'This changes the branch used on the next deployment to this folder.', 'gitomatic-wp' ); ?></p>
-			</td></tr>
+		<input type="hidden" name="source_id" value="<?php echo esc_attr( $package_slug ); ?>">
+		<input type="hidden" name="package_type" value="<?php echo esc_attr( $package_type ); ?>">
+		<p><?php esc_html_e( 'These settings apply to the next deployment to this folder.', 'gitomatic-wp' ); ?></p>
+		<table class="form-table" role="presentation">
+			<?php $branch_value = $package_data['branch']; include dirname( __DIR__ ) . '/branch-field.php'; ?>
 
 			<?php if ( $package_data['is_private_repository'] ) : ?>
 				<?php if ( $provider === 'bitbucket' ) : ?>

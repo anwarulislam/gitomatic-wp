@@ -7,7 +7,7 @@ Requires at least: 4.6
 
 Tested up to: 7.1
 
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 
 License: GPL-3.0
 
@@ -69,6 +69,9 @@ The plugin is designed to safely update your website with the latest changes fro
 Use wp gitomatic-wp list to see deployments. Run wp help gitomatic-wp for installation and update commands.
 
 == Changelog ==
+= 1.3.1 =
+* Updated deployment forms to use the native WordPress settings layout.
+
 = 1.3.0 =
 * Added a branch selector and a single deployment setup screen.
 * Deploy multiple branches into one installation or keep separate plugin and theme copies.

@@ -30,11 +30,10 @@ function initDeploymentForm() {
 		const existing = fields.use_existing && fields.use_existing.checked;
 		const kind = fields.package_type.value;
 		if (fields.use_existing) {
-			document.querySelector('#gitomatic-wp-existing').hidden = !existing;
-			form.querySelectorAll('[data-existing]').forEach(label => {
-				label.hidden = label.dataset.existing !== kind;
-				const select = label.querySelector('select');
-				select.disabled = !existing || label.hidden;
+			form.querySelectorAll('[data-existing]').forEach(row => {
+				row.hidden = !existing || row.dataset.existing !== kind;
+				const select = row.querySelector('select');
+				select.disabled = row.hidden;
 				select.required = !select.disabled;
 			});
 		}
@@ -48,6 +47,8 @@ function initDeploymentForm() {
 		folder.disabled = !!(shared || existing);
 		folder.required = !folder.disabled;
 		const destination = existing ? fields['existing_' + kind].value : (shared ? base : folder.value);
+		document.querySelector('#gitomatic-wp-path-row').hidden = !destination;
+		document.querySelector('#gitomatic-wp-replace-note').hidden = !(shared || existing);
 		document.querySelector('#gitomatic-wp-path').textContent = destination ?
 			gitomatic_wp.roots[fields.package_type.value] + '/' + destination : '';
 	}
